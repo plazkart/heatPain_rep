@@ -573,26 +573,17 @@ switch action
 
     case 'spVoxelPlacement'
         % use as hp_make('spVoxelPlacement', id)
-        %makes voxel mask in MNI-space
         mainStruct = hp_make('load');
         id = varargin{1};
         nam = sprintf('sub_%02i', id);
-
+    
+        MRS_struct = GannetLoad();
         MRS_struct = CoRegStandAlone({[mainStruct.meta.folder mainStruct.(nam).folder '\sp\' nam '_sham.SDAT']},...
             {[mainStruct.meta.folder mainStruct.(nam).folder '\anat\' nam '_anat.nii']})
         mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived']);
-        copyfile(MRS_struct.mask.vox1.outfile{1}, [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii']);
-        delete(MRS_struct.mask.vox1.outfile{1});
-        mainStruct.(nam).proc.sp_mask.path = [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii'];
-        mainStruct.(nam).proc.sp_mask.GM = MRS_struct.out.vox1.tissue.fGM;
-        mainStruct.(nam).proc.sp_mask.WM = MRS_struct.out.vox1.tissue.fWM;
-        mainStruct.(nam).proc.sp_mask.CSF = MRS_struct.out.vox1.tissue.fCSF;
-        mainStruct = hp_make('save', mainStruct);
-        %translate to MNI
-        callNormilise(mainStruct.(nam).proc.sp_mask.path,...
-            [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
-
-
+        copyfile(MRS_struct.mask.vox1.outfile, [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii']);
+        mainStruct.(nam).proc.sp_mask = [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii'];
+        
 
         
 
@@ -667,16 +658,4 @@ function startTime = getTTLtime(xlsfile)
         end
     end
 
-end
-
-function callNormilise(mask_image, deformations_map)
-    matlabbatch{1}.spm.spatial.normalise.write.subj.def(1) = {deformations_map};
-    matlabbatch{1}.spm.spatial.normalise.write.subj.resample(1) = {mask_image};
-    matlabbatch{1}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70
-                                                              78 76 85];
-    matlabbatch{1}.spm.spatial.normalise.write.woptions.vox = [1 1 1];
-    matlabbatch{1}.spm.spatial.normalise.write.woptions.interp = 4;
-    matlabbatch{1}.spm.spatial.normalise.write.woptions.prefix = 'w';
-
-    spm_jobman('run',matlabbatch);
 end
