@@ -404,8 +404,30 @@ switch action
 
            
         end
-
     
+    case 'LinewidthAssessment'
+        %use as hp_make('LinewidthAssessment', id, condition, tp)
+        % assess FWHM of Cr and NAA signals
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        condition = varargin{2};
+        tp = varargin{3};
+        nam = sprintf('sub_%02i', id);
+        
+        if tp
+            for i=1:mainStruct.(nam).proc_check.tp_spectra_res.(condition)
+                sp_nam = sprintf('tp_%02i', i);
+                sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '.SDAT'], 1);
+                Cr_fwhm = op_getLW(sp, 2.8, 3.1);
+                NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+
+                mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
+                mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
+            end
+            hp_make('save', mainStruct);
+        end
+
+
     case 'spectraPreprocessing'
         %use as hp_make('spectraPreprocessing', path, mainStruct, id)
         if ~isstruct(varargin{1})
@@ -440,6 +462,7 @@ switch action
         varargout{1} = sp_fpa_av_wr;
 
     case 'mrs_task_file'
+        %use as hp_make('mrs_task_file', id)
         mainStruct = hp_make('load');
         %using MEDOC TSA data
         if nargin<2
@@ -488,6 +511,30 @@ switch action
         mainStruct.(nam).proc.start_dynamic = start_dynamic;
         mainStruct.(nam).proc.tp_matrix = time_point_matrix;
         mainStruct.(nam).proc_check.tp_matrix = 1;
+        
+
+        %make personal HRF for heat pain stimuli during fMRS
+        %simple HRF convolved with stimulus function (var task_starts)
+        %get standard HRF
+        MR = 16;
+        dt = [0:315*MR*2]/MR;
+        u = zeros(length(dt), 1);
+        for i=1:length(task_starts)
+            a = find(dt>task_starts(i));
+            u(a(1)+ceil(dt(a(1))-task_starts(i)), 1)=1;
+        end
+        pars = [6, 16, 1, 1, 6, 0, 32];
+        [bf, p] = spm_hrf(1/16, pars(1:6), 16);
+
+        hrf = conv(u, bf);
+        TR_samples = [0:315]*2*MR+1;
+        hrf_samples=hrf(TR_samples);
+        hrf_samples(1)=[];
+        for i=1:max(time_point_matrix)
+            hrf_mean(i) = mean(hrf_samples(time_point_matrix==i));
+        end
+
+        mainStruct.(nam).proc.hfr_mrs = hrf_mean;
         mainStruct = hp_make('save', mainStruct);
 
     case 'copyData'
@@ -591,22 +638,24 @@ switch action
         %translate to MNI
         callNormilise(mainStruct.(nam).proc.sp_mask.path,...
             [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
-
-
-
         
 
         
     case 'getResSP'
-        %use as [~, resTable] = hp_make('getResSP', condition)
+        %use as [~, resTable] = hp_make('getResSP', condition, met)
         %gives results of the spectroscopy experiment as a matrix
         mainStruct = hp_make('load');
         
         condition = varargin{1};
-
-        resTable.Glx = zeros([mainStruct.meta.subNumbers, 6]);
-        resTable.Cr = zeros([mainStruct.meta.subNumbers, 6]);
-        resTable.NAA = zeros([mainStruct.meta.subNumbers, 6]);
+        met = varargin{2};
+        
+        if contains(met, 'LW')
+            resTable.LW.Cr = zeros([mainStruct.meta.subNumbers, 6]);
+            resTable.LW.NAA = zeros([mainStruct.meta.subNumbers, 6]);
+        else
+            resTable.(met).Conc = zeros([mainStruct.meta.subNumbers, 6]);
+            resTable.(met).ConcCr = zeros([mainStruct.meta.subNumbers, 6]);
+        end
 
         for id=1:mainStruct.meta.subNumbers
             nam = sprintf('sub_%02i', id);
@@ -614,9 +663,13 @@ switch action
                 colNum = mainStruct.(nam).proc_check.tp_spectra_res.(condition);
                 for ii=1:colNum
                     tp_nam = sprintf('tp_%02i', ii);
-                    resTable.Glx(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).Glx;
-                    resTable.NAA(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).NAA;
-                    resTable.Cr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).Cr;
+                    if contains(met, 'LW')
+                        resTable.LW.NAA(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWNAA;
+                        resTable.LW.Cr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWCr;
+                    else
+                        resTable.(met).Conc(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).Glx;
+                    end
+
                 end
             end
         end
@@ -679,4 +732,24 @@ function callNormilise(mask_image, deformations_map)
     matlabbatch{1}.spm.spatial.normalise.write.woptions.prefix = 'w';
 
     spm_jobman('run',matlabbatch);
+end
+
+function [X] = makeHRF(onsets)
+
+    %make correct onset times
+%     [U] = spm_get_ons(SPM,s)
+    pars = [6, 16, 1, 1, 6, 1, 32];
+    %make basis function 
+    global SPM1
+    [bf, p]      = spm_hrf(2, pars(1:6), 16);
+    bf = bf*pars(7);
+    %convolve it with stimuli function from SPM struct (pre-defined using
+    %GUI)  
+    [X,Xn,Fc] = spm_Volterra(SPM1.Sess(1).U, SPM1.xBF.bf, SPM1.xBF.Volterra);
+    %-Resample regressors at acquisition times (32 bin offset)
+    %----------------------------------------------------------------------
+    if ~isempty(X)
+        X = X((0:(145 - 1))*SPM1.xBF.T + SPM1.xBF.T0 + 32,:);
+    end
+    X = X(:, 1);
 end
