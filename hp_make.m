@@ -221,11 +221,12 @@ switch action
             mainStruct = varargin{1};
         end
         mainStruct.meta.date = datetime("today");
-        save('G:\_other\fMRS-heatPain\_meta\structMeta.mat', 'mainStruct');
+        save([mainStruct.meta.folder '\_meta\structMeta.mat'], 'mainStruct');
         
         
     case 'load'
-        load('G:\_other\fMRS-heatPain\_meta\structMeta.mat');
+        hp_default;
+%         load([mainStruct.meta.folder '\_meta\structMeta.mat']);
 %% Processing steps
     %fmri
      
@@ -475,6 +476,7 @@ switch action
             ttlTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
             regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
             task_starts = regressorList(:,1)-ttlTime;
+            stim_dur = regressorList(:,2);
         else 
             error("There is no stimulation table data to make time_point matrix");
         end
