@@ -678,11 +678,29 @@ switch action
         varargout{1} = resTable;
                 
 
+%% Q6_time_series_task
 
-                
-            
-            
-            
+    case 'Q6'
+
+        % to activate the case -    hp_make('Q6',8)
+        
+        id = varargin{1};
+        mainStruct = hp_make('load');
+        nam = sprintf('sub_%02i', id);
+
+        fmri_file = ([mainStruct.meta.folder '\' nam '\func\' nam '_func.nii']);
+        rp_file = ([mainStruct.meta.folder '\' nam '\derived\rp_' nam '_func.txt']);
+        SPM_file = ([mainStruct.meta.folder '\' nam '\derived\res\SPM.mat']);
+        
+        %fmri_file = ('C:\Helen\Docs\DHiT\Alex\sub_08\func\sub_08_func.nii');
+        %rp_file = ('C:\Helen\Docs\DHiT\Alex\sub_08\derived\rp_sub_08_func.txt');
+        %SPM_file = ('C:\Helen\Docs\DHiT\Alex\sub_08\derived\res\SPM.mat');
+
+        Q6_time_series_task(fmri_file, rp_file, SPM_file);
+        saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\Q6.jpg'],'jpg');
+         
+
+
 
         %% Some not very important features or minor experiments (consider to remove it)
         
