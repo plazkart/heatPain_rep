@@ -641,8 +641,41 @@ switch action
         callNormilise(mainStruct.(nam).proc.sp_mask.path,...
             [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
         
+    case 'count_fmriMetrics'
+        % use as hp_make('count_fmriMetrics', id, metrics)
+        % 'beta' - quantifying mean ratio of beta coef. 1 (stim) and
+        % constant term (last one)
 
+        %Check this for Visual stimulation data
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        metrics = varargin{2};
+        nam = sprintf('sub_%02i', id);
+
+        [filepath,name] = fileparts(mainStruct.(nam).proc.sp_mask.path);
+%         callSmothing([filepath '\w' name '.nii']);
+        V_mask = spm_vol([filepath '\sw' name '.nii']);
         
+        switch metrics
+            case 'beta'
+                fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
+                V_img_1 = spm_vol([fils(1).folder '\' fils(1).name]);
+                V_img_end = spm_vol([fils(end).folder '\' fils(end).name]);
+                makeSameResolution(V_img_1.fname, V_mask.fname);
+                V_mask = spm_vol([filepath '\rsw' name '.nii']);
+
+                I_mask = V_mask.private.dat(:,:,:);
+                I_img_1 = V_img_1.private.dat(:,:,:);
+                I_img_end = V_img_end.private.dat(:,:,:);
+
+                I_rel = I_img_1./I_img_end;
+                MultiplyI = I_mask.*I_rel; idx = ~isnan(MultiplyI);
+                MultiplyI = MultiplyI(idx); 
+                BOLD_beta = mean(MultiplyI,'all');
+            
+        end
+
+
     case 'getResSP'
         %use as [~, resTable] = hp_make('getResSP', condition, met)
         %gives results of the spectroscopy experiment as a matrix
@@ -678,7 +711,8 @@ switch action
         varargout{1} = resTable;
                 
 
-%% Q6_time_series_task
+%% Quality control procedures
+        % Quality control for fMRI data (EVoronkova 12122023)
 
     case 'Q6'
 
@@ -688,7 +722,7 @@ switch action
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
-        fmri_file = ([mainStruct.meta.folder '\' nam '\func\' nam '_func.nii']);
+        fmri_file = ([mainStruct.meta.folder '\' nam '\derived\r' nam '_func.nii']);
         rp_file = ([mainStruct.meta.folder '\' nam '\derived\rp_' nam '_func.txt']);
         SPM_file = ([mainStruct.meta.folder '\' nam '\derived\res\SPM.mat']);
         
@@ -752,6 +786,29 @@ function callNormilise(mask_image, deformations_map)
     matlabbatch{1}.spm.spatial.normalise.write.woptions.prefix = 'w';
 
     spm_jobman('run',matlabbatch);
+end
+
+function callSmothing(img)
+    matlabbatch{1}.spm.spatial.smooth.data(1) = {img};
+    matlabbatch{1}.spm.spatial.smooth.fwhm = [6 6 6];
+    matlabbatch{1}.spm.spatial.smooth.dtype = 0;
+    matlabbatch{1}.spm.spatial.smooth.im = 0;
+    matlabbatch{1}.spm.spatial.smooth.prefix = 's';
+
+    spm_jobman('run',matlabbatch);
+end
+
+function makeSameResolution(img1, img2)
+    nrun = 1;
+    jobfile = {'C:\Users\Science\Documents\GitHub\matlab_work\My_scripts\utils\fmri_CoregReslice_job.m'};
+    jobs = repmat(jobfile, 1, nrun);
+    inputs = cell(2, nrun);
+    for crun = 1:nrun
+        inputs{1, crun} = {img1}; % Coregister: Reslice: Image Defining Space - cfg_files
+        inputs{2, crun} = {img2}; % Coregister: Reslice: Images to Reslice - cfg_files
+    end
+    spm('defaults', 'FMRI');
+    spm_jobman('run', jobs, inputs{:});
 end
 
 function [X] = makeHRF(onsets)

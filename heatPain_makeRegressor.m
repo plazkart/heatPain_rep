@@ -5,12 +5,12 @@ function  regressorList = heatPain_makeRegressor(taskFile)
 time = xlFile(:, 1);
 temp = xlFile(:, 3);
 
-tempStart = min(temp(1:1000))+ (max(temp) - min(temp(1:1000)))/2;
+tempStart = min(temp(1:1000))+ (max(temp) - min(temp(1:1000)))*0.9;
 
 k=1;
 temp = abs(temp - tempStart);
 
-temp_minimals = temp<0.8;
+temp_minimals = temp<0.5;
 idxs = 1:length(temp);
 idxs = idxs(temp_minimals);
 
