@@ -4,13 +4,16 @@
 % AYakovlev 13-10-2023
 % AYakovlev 13-11-2023
 
+%% Main steps
+% mainStruct = hp_make('load'); 
+
 % id= 3;
 % mainStruct = hp_make('sp_proc', id, 'sham', 1);
 % mainStruct = hp_make('sp_proc', id, 'act', 1);
 % hp_make('copyData', id,  'F:\heatPainSP', 'tp_mrs');
 % hp_make('copyData', id,  'F:\heatPainSP', 'water_mrs');
 % %%
-% mainStruct = hp_make('load'); 
+
 % %%
 % mainStruct = hp_make('save', mainStruct);
 % %%
@@ -653,26 +656,39 @@ switch action
         nam = sprintf('sub_%02i', id);
 
         [filepath,name] = fileparts(mainStruct.(nam).proc.sp_mask.path);
-%         callSmothing([filepath '\w' name '.nii']);
+%          callSmothing([filepath '\w' name '.nii']);
         V_mask = spm_vol([filepath '\sw' name '.nii']);
         
         switch metrics
             case 'beta'
                 fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
-                V_img_1 = spm_vol([fils(1).folder '\' fils(1).name]);
-                V_img_end = spm_vol([fils(end).folder '\' fils(end).name]);
+                img_beta1= [fils(1).folder '\' fils(1).name];
+                img_beta2 = [fils(end).folder '\' fils(end).name];
                 makeSameResolution(V_img_1.fname, V_mask.fname);
-                V_mask = spm_vol([filepath '\rsw' name '.nii']);
+                img_mask = [filepath '\rsw' name '.nii'];
 
-                I_mask = V_mask.private.dat(:,:,:);
-                I_img_1 = V_img_1.private.dat(:,:,:);
-                I_img_end = V_img_end.private.dat(:,:,:);
+                BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
+                mainStruct.(nam).proc.bold.mean_delta_beta1 = BOLD_beta;
+                varargout{1} = BOLD_beta;
+                hp_make('save', mainStruct);
 
-                I_rel = I_img_1./I_img_end;
-                MultiplyI = I_mask.*I_rel; idx = ~isnan(MultiplyI);
-                MultiplyI = MultiplyI(idx); 
-                BOLD_beta = mean(MultiplyI,'all');
-            
+            case 'insula_beta'
+                fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
+                img_mask = [mainStruct.meta.folder '\_meta\atlas_map\rsinsula_atlas.nii'];
+                img_beta1= [fils(1).folder '\' fils(1).name];
+                img_beta2 = [fils(end).folder '\' fils(end).name];
+                 BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
+                varargout{1} = BOLD_beta;
+
+            case 'cluster'
+                fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
+                img_mask = [fils(1).folder '\clus1.nii'];
+                img_beta1= [fils(1).folder '\' fils(1).name];
+                img_beta2 = [fils(end).folder '\' fils(end).name];
+                 BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
+                varargout{1} = BOLD_beta;
+
+
         end
 
 
@@ -710,6 +726,24 @@ switch action
         end
         varargout{1} = resTable;
                 
+        case 'getResBOLD'
+        %use as [~, resTable] = hp_make('getResBOLD')
+        %gives results of the functional MRI experiment as a matrix
+        mainStruct = hp_make('load');
+        resTable = zeros(1,1);
+
+        for id=1:mainStruct.meta.subNumbers
+            nam = sprintf('sub_%02i', id);
+            
+
+           if isfield(mainStruct.(nam).proc, 'bold') 
+              resTable(id, 1) = mainStruct.(nam).proc.bold.mean_delta_beta1;
+           end
+           
+        end
+        varargout{1} = resTable;
+
+
 
 %% Quality control procedures
         % Quality control for fMRI data (EVoronkova 12122023)
@@ -809,6 +843,23 @@ function makeSameResolution(img1, img2)
     end
     spm('defaults', 'FMRI');
     spm_jobman('run', jobs, inputs{:});
+end
+
+function BOLD_beta = countBeta(img_mask, img_beta1, img_beta2)
+    %get filenames of the needed images
+    V_img_1 = spm_vol(img_beta1);
+    V_img_end = spm_vol(img_beta2);
+    V_mask = spm_vol(img_mask);
+
+    I_mask = V_mask.private.dat(:,:,:);
+    I_img_1 = V_img_1.private.dat(:,:,:);
+    I_img_end = V_img_end.private.dat(:,:,:);
+    
+    I_rel = I_img_1./I_img_end;
+    MultiplyI = I_mask.*I_rel; idx = ~isnan(MultiplyI);
+    MultiplyI = MultiplyI(idx); I_mask = I_mask(idx);
+    BOLD_beta = sum(MultiplyI,'all')/sum(I_mask, 'all');
+
 end
 
 function [X] = makeHRF(onsets)

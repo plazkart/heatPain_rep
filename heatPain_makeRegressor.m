@@ -10,7 +10,7 @@ tempStart = min(temp(1:1000))+ (max(temp) - min(temp(1:1000)))*0.9;
 k=1;
 temp = abs(temp - tempStart);
 
-temp_minimals = temp<0.5;
+temp_minimals = temp<0.7;
 idxs = 1:length(temp);
 idxs = idxs(temp_minimals);
 
