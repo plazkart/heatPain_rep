@@ -313,9 +313,9 @@ switch action
                 func_data(i, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swr' nam '_func.nii,' num2str(i)]};
             end
             inputs{2, crun} = func_data; % fMRI model specification: Scans - cfg_files
-            if floor(mod(mainStruct.sub_03.data_check.funcTable, 100)/10)>0
+            if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
                 regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
-                regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.sub_06.proc.dummy_time);
+                regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.(nam).proc.dummy_time);
             end
             inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
             inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
@@ -327,7 +327,7 @@ switch action
 % MRS processing
         
     case 'sp_proc'
-        %use as hp_make('sp_proc', id, sp_name, time_points_action)
+        %% use as hp_make('sp_proc', id, sp_name, time_points_action)
         % id - id of the precossed subject
         % sp_name - type of the processed spectra {'sham', 'ref', 'act'}
         % time_points_action - is it needed to process as time points? (0
@@ -498,10 +498,15 @@ switch action
         mrs_NSAmax = 315;
         mrs_timings = [1:mrs_NSAmax]*2-2;
         %need to write first active time point
-        start_dynamic = 3;
+        if mainStruct.(nam).proc.start_dynamic == 0
+            start_dynamic = 3;
+            mainStruct.(nam).proc.start_dynamic = start_dynamic;
+        else
+            start_dynamic = mainStruct.(nam).proc.start_dynamic;
+        end
         time_point_matrix = zeros(mrs_NSAmax, 1);
 %         time_point_matrix(start_dynamic) = 1;
-        task_starts = task_starts+4;
+        task_starts = task_starts+12;
         k=1; series_num = 1;
         for i=start_dynamic:mrs_NSAmax
             if (task_starts(k)>mrs_timings(i)) && (task_starts(k)<mrs_timings(i)+2)
@@ -828,7 +833,7 @@ function callNormilise(mask_image, deformations_map)
     spm_jobman('run',matlabbatch);
 end
 
-<<<<<<< Updated upstream
+
 function callSmothing(img)
     matlabbatch{1}.spm.spatial.smooth.data(1) = {img};
     matlabbatch{1}.spm.spatial.smooth.fwhm = [6 6 6];
@@ -869,9 +874,10 @@ function BOLD_beta = countBeta(img_mask, img_beta1, img_beta2)
 
 end
 
-=======
+
 function callfMRIProcessing(inputs)
-    matlabbatch{1}.spm.spatial.realign.estwrite.data = {'<UNDEFINED>'};
+%     matlabbatch{1}.spm.spatial.realign.estwrite.data = {'<UNDEFINED>'};
+    matlabbatch{1}.spm.spatial.realign.estwrite.data = {inputs{1, 1}};
     matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.quality = 0.9;
     matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.sep = 4;
     matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.fwhm = 5;
@@ -884,38 +890,40 @@ function callfMRIProcessing(inputs)
     matlabbatch{1}.spm.spatial.realign.estwrite.roptions.wrap = [0 0 0];
     matlabbatch{1}.spm.spatial.realign.estwrite.roptions.mask = 1;
     matlabbatch{1}.spm.spatial.realign.estwrite.roptions.prefix = 'r';
-    matlabbatch{2}.spm.spatial.coreg.estimate.ref = '<UNDEFINED>';
+%     matlabbatch{2}.spm.spatial.coreg.estimate.ref = '<UNDEFINED>';
+    matlabbatch{2}.spm.spatial.coreg.estimate.ref = inputs{2, 1};
     matlabbatch{2}.spm.spatial.coreg.estimate.source(1) = cfg_dep('Realign: Estimate & Reslice: Mean Image', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','rmean'));
     matlabbatch{2}.spm.spatial.coreg.estimate.other(1) = cfg_dep('Realign: Estimate & Reslice: Resliced Images (Sess 1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','sess', '()',{1}, '.','rfiles'));
     matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.cost_fun = 'nmi';
     matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
     matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
     matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
-    matlabbatch{3}.spm.spatial.preproc.channel.vols = '<UNDEFINED>';
+%     matlabbatch{3}.spm.spatial.preproc.channel.vols = '<UNDEFINED>';
+    matlabbatch{3}.spm.spatial.preproc.channel.vols = inputs{3, 1};
     matlabbatch{3}.spm.spatial.preproc.channel.biasreg = 0.001;
     matlabbatch{3}.spm.spatial.preproc.channel.biasfwhm = 60;
     matlabbatch{3}.spm.spatial.preproc.channel.write = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(1).tpm = {'C:\Users\Science\Documents\MATLAB\spm12\spm12\tpm\TPM.nii,1'};
+    matlabbatch{3}.spm.spatial.preproc.tissue(1).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,1']};
     matlabbatch{3}.spm.spatial.preproc.tissue(1).ngaus = 1;
     matlabbatch{3}.spm.spatial.preproc.tissue(1).native = [1 0];
     matlabbatch{3}.spm.spatial.preproc.tissue(1).warped = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(2).tpm = {'C:\Users\Science\Documents\MATLAB\spm12\spm12\tpm\TPM.nii,2'};
+    matlabbatch{3}.spm.spatial.preproc.tissue(2).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,2']};
     matlabbatch{3}.spm.spatial.preproc.tissue(2).ngaus = 1;
     matlabbatch{3}.spm.spatial.preproc.tissue(2).native = [1 0];
     matlabbatch{3}.spm.spatial.preproc.tissue(2).warped = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(3).tpm = {'C:\Users\Science\Documents\MATLAB\spm12\spm12\tpm\TPM.nii,3'};
+    matlabbatch{3}.spm.spatial.preproc.tissue(3).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,3']};
     matlabbatch{3}.spm.spatial.preproc.tissue(3).ngaus = 2;
     matlabbatch{3}.spm.spatial.preproc.tissue(3).native = [1 0];
     matlabbatch{3}.spm.spatial.preproc.tissue(3).warped = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(4).tpm = {'C:\Users\Science\Documents\MATLAB\spm12\spm12\tpm\TPM.nii,4'};
+    matlabbatch{3}.spm.spatial.preproc.tissue(4).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,4']};
     matlabbatch{3}.spm.spatial.preproc.tissue(4).ngaus = 3;
     matlabbatch{3}.spm.spatial.preproc.tissue(4).native = [1 0];
     matlabbatch{3}.spm.spatial.preproc.tissue(4).warped = [0 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(5).tpm = {'C:\Users\Science\Documents\MATLAB\spm12\spm12\tpm\TPM.nii,5'};
+    matlabbatch{3}.spm.spatial.preproc.tissue(5).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,5']};
     matlabbatch{3}.spm.spatial.preproc.tissue(5).ngaus = 4;
     matlabbatch{3}.spm.spatial.preproc.tissue(5).native = [1 0];
     matlabbatch{3}.spm.spatial.preproc.tissue(5).warped = [0 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(6).tpm = {'C:\Users\Science\Documents\MATLAB\spm12\spm12\tpm\TPM.nii,6'};
+    matlabbatch{3}.spm.spatial.preproc.tissue(6).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,6']};
     matlabbatch{3}.spm.spatial.preproc.tissue(6).ngaus = 2;
     matlabbatch{3}.spm.spatial.preproc.tissue(6).native = [0 0];
     matlabbatch{3}.spm.spatial.preproc.tissue(6).warped = [0 0];
@@ -945,7 +953,7 @@ function callfMRIProcessing(inputs)
     spm_jobman('run',matlabbatch);
 end
 
->>>>>>> Stashed changes
+
 function [X] = makeHRF(onsets)
 
     %make correct onset times
