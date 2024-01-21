@@ -4,13 +4,16 @@
 % AYakovlev 13-10-2023
 % AYakovlev 13-11-2023
 
+%% Main steps
+% mainStruct = hp_make('load'); 
+
 % id= 3;
 % mainStruct = hp_make('sp_proc', id, 'sham', 1);
 % mainStruct = hp_make('sp_proc', id, 'act', 1);
 % hp_make('copyData', id,  'F:\heatPainSP', 'tp_mrs');
 % hp_make('copyData', id,  'F:\heatPainSP', 'water_mrs');
 % %%
-% mainStruct = hp_make('load'); 
+
 % %%
 % mainStruct = hp_make('save', mainStruct);
 % %%
@@ -270,16 +273,19 @@ switch action
         
         if spatial_steps
             nrun = 1;
-            jobfile = {'G:\_other\fMRS-heatPain\_meta\spatial_empty_job.m'};
-            jobs = repmat(jobfile, 1, nrun);
+%             jobfile = {[mainStruct.meta.folder '\_meta\spatial_empty_job.m']};
+%             jobs = repmat(jobfile, 1, nrun);
+            
             inputs = cell(3, nrun);
             for crun = 1:nrun
                 inputs{1, crun} = func_data; % Realign: Estimate & Reslice: Session - cfg_files
                 inputs{2, crun} = anat_data; % Coregister: Estimate: Reference Image - cfg_files
                 inputs{3, crun} = anat_data; % Segment: Volumes - cfg_files
             end
-            spm('defaults', 'FMRI');
-            spm_jobman('run', jobs, inputs{:});
+            
+%             spm('defaults', 'FMRI');
+%             spm_jobman('run', jobs, inputs{:});
+            callfMRIProcessing(inputs);
 
 
             fils_func = dir([mainStruct.meta.folder mainStruct.(nam).folder '\func\*' nam '*']);
@@ -298,7 +304,7 @@ switch action
 
         mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived\res']);
         nrun = 1; % enter the number of runs here
-        jobfile = {'G:\_other\fMRS-heatPain\_meta\stats_empty_job.m'};
+        jobfile = {[mainStruct.meta.folder '\_meta\stats_empty_job.m']};
         jobs = repmat(jobfile, 1, nrun);
         inputs = cell(5, nrun);
         for crun = 1:nrun
@@ -307,9 +313,9 @@ switch action
                 func_data(i, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swr' nam '_func.nii,' num2str(i)]};
             end
             inputs{2, crun} = func_data; % fMRI model specification: Scans - cfg_files
-            if floor(mod(mainStruct.sub_03.data_check.funcTable, 100)/10)>0
+            if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
                 regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
-                regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.sub_06.proc.dummy_time);
+                regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.(nam).proc.dummy_time);
             end
             inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
             inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
@@ -321,7 +327,7 @@ switch action
 % MRS processing
         
     case 'sp_proc'
-        %use as hp_make('sp_proc', id, sp_name, time_points_action)
+        %% use as hp_make('sp_proc', id, sp_name, time_points_action)
         % id - id of the precossed subject
         % sp_name - type of the processed spectra {'sham', 'ref', 'act'}
         % time_points_action - is it needed to process as time points? (0
@@ -492,10 +498,15 @@ switch action
         mrs_NSAmax = 315;
         mrs_timings = [1:mrs_NSAmax]*2-2;
         %need to write first active time point
-        start_dynamic = 3;
+        if mainStruct.(nam).proc.start_dynamic == 0
+            start_dynamic = 3;
+            mainStruct.(nam).proc.start_dynamic = start_dynamic;
+        else
+            start_dynamic = mainStruct.(nam).proc.start_dynamic;
+        end
         time_point_matrix = zeros(mrs_NSAmax, 1);
 %         time_point_matrix(start_dynamic) = 1;
-        task_starts = task_starts+4;
+        task_starts = task_starts+12;
         k=1; series_num = 1;
         for i=start_dynamic:mrs_NSAmax
             if (task_starts(k)>mrs_timings(i)) && (task_starts(k)<mrs_timings(i)+2)
@@ -523,7 +534,10 @@ switch action
         u = zeros(length(dt), 1);
         for i=1:length(task_starts)
             a = find(dt>task_starts(i));
-            u(a(1)+ceil(dt(a(1))-task_starts(i)), 1)=1;
+            lower_side = a(1)+ceil(dt(a(1))-task_starts(i));
+            a = find(dt>task_starts(i)+3); %Fix stimulus
+            upper_side = a(1)+ceil(dt(a(1))-(task_starts(i)+3));
+            u(lower_side:upper_side, 1)=1;
         end
         pars = [6, 16, 1, 1, 6, 0, 32];
         [bf, p] = spm_hrf(1/16, pars(1:6), 16);
@@ -641,8 +655,54 @@ switch action
         callNormilise(mainStruct.(nam).proc.sp_mask.path,...
             [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
         
+    case 'count_fmriMetrics'
+        % use as hp_make('count_fmriMetrics', id, metrics)
+        % 'beta' - quantifying mean ratio of beta coef. 1 (stim) and
+        % constant term (last one)
 
+        %Check this for Visual stimulation data
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        metrics = varargin{2};
+        nam = sprintf('sub_%02i', id);
+
+        [filepath,name] = fileparts(mainStruct.(nam).proc.sp_mask.path);
+%          callSmothing([filepath '\w' name '.nii']);
+        V_mask = spm_vol([filepath '\sw' name '.nii']);
         
+        switch metrics
+            case 'beta'
+                fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
+                img_beta1= [fils(1).folder '\' fils(1).name];
+                img_beta2 = [fils(end).folder '\' fils(end).name];
+                makeSameResolution(V_img_1.fname, V_mask.fname);
+                img_mask = [filepath '\rsw' name '.nii'];
+
+                BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
+                mainStruct.(nam).proc.bold.mean_delta_beta1 = BOLD_beta;
+                varargout{1} = BOLD_beta;
+                hp_make('save', mainStruct);
+
+            case 'insula_beta'
+                fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
+                img_mask = [mainStruct.meta.folder '\_meta\atlas_map\rsinsula_atlas.nii'];
+                img_beta1= [fils(1).folder '\' fils(1).name];
+                img_beta2 = [fils(end).folder '\' fils(end).name];
+                 BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
+                varargout{1} = BOLD_beta;
+
+            case 'cluster'
+                fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
+                img_mask = [fils(1).folder '\clus1.nii'];
+                img_beta1= [fils(1).folder '\' fils(1).name];
+                img_beta2 = [fils(end).folder '\' fils(end).name];
+                 BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
+                varargout{1} = BOLD_beta;
+
+
+        end
+
+
     case 'getResSP'
         %use as [~, resTable] = hp_make('getResSP', condition, met)
         %gives results of the spectroscopy experiment as a matrix
@@ -677,8 +737,27 @@ switch action
         end
         varargout{1} = resTable;
                 
+        case 'getResBOLD'
+        %use as [~, resTable] = hp_make('getResBOLD')
+        %gives results of the functional MRI experiment as a matrix
+        mainStruct = hp_make('load');
+        resTable = zeros(1,1);
 
-%% Q6_time_series_task
+        for id=1:mainStruct.meta.subNumbers
+            nam = sprintf('sub_%02i', id);
+            
+
+           if isfield(mainStruct.(nam).proc, 'bold') 
+              resTable(id, 1) = mainStruct.(nam).proc.bold.mean_delta_beta1;
+           end
+           
+        end
+        varargout{1} = resTable;
+
+
+
+%% Quality control procedures
+        % Quality control for fMRI data (EVoronkova 12122023)
 
     case 'Q6'
 
@@ -688,7 +767,7 @@ switch action
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
-        fmri_file = ([mainStruct.meta.folder '\' nam '\func\' nam '_func.nii']);
+        fmri_file = ([mainStruct.meta.folder '\' nam '\derived\r' nam '_func.nii']);
         rp_file = ([mainStruct.meta.folder '\' nam '\derived\rp_' nam '_func.txt']);
         SPM_file = ([mainStruct.meta.folder '\' nam '\derived\res\SPM.mat']);
         
@@ -753,6 +832,127 @@ function callNormilise(mask_image, deformations_map)
 
     spm_jobman('run',matlabbatch);
 end
+
+
+function callSmothing(img)
+    matlabbatch{1}.spm.spatial.smooth.data(1) = {img};
+    matlabbatch{1}.spm.spatial.smooth.fwhm = [6 6 6];
+    matlabbatch{1}.spm.spatial.smooth.dtype = 0;
+    matlabbatch{1}.spm.spatial.smooth.im = 0;
+    matlabbatch{1}.spm.spatial.smooth.prefix = 's';
+
+    spm_jobman('run',matlabbatch);
+end
+
+function makeSameResolution(img1, img2)
+    nrun = 1;
+    jobfile = {'C:\Users\Science\Documents\GitHub\matlab_work\My_scripts\utils\fmri_CoregReslice_job.m'};
+    jobs = repmat(jobfile, 1, nrun);
+    inputs = cell(2, nrun);
+    for crun = 1:nrun
+        inputs{1, crun} = {img1}; % Coregister: Reslice: Image Defining Space - cfg_files
+        inputs{2, crun} = {img2}; % Coregister: Reslice: Images to Reslice - cfg_files
+    end
+    spm('defaults', 'FMRI');
+    spm_jobman('run', jobs, inputs{:});
+end
+
+function BOLD_beta = countBeta(img_mask, img_beta1, img_beta2)
+    %get filenames of the needed images
+    V_img_1 = spm_vol(img_beta1);
+    V_img_end = spm_vol(img_beta2);
+    V_mask = spm_vol(img_mask);
+
+    I_mask = V_mask.private.dat(:,:,:);
+    I_img_1 = V_img_1.private.dat(:,:,:);
+    I_img_end = V_img_end.private.dat(:,:,:);
+    
+    I_rel = I_img_1./I_img_end;
+    MultiplyI = I_mask.*I_rel; idx = ~isnan(MultiplyI);
+    MultiplyI = MultiplyI(idx); I_mask = I_mask(idx);
+    BOLD_beta = sum(MultiplyI,'all')/sum(I_mask, 'all');
+
+end
+
+
+function callfMRIProcessing(inputs)
+%     matlabbatch{1}.spm.spatial.realign.estwrite.data = {'<UNDEFINED>'};
+    matlabbatch{1}.spm.spatial.realign.estwrite.data = {inputs{1, 1}};
+    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.quality = 0.9;
+    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.sep = 4;
+    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.fwhm = 5;
+    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.rtm = 1;
+    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.interp = 2;
+    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.wrap = [0 0 0];
+    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.weight = '';
+    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.which = [2 1];
+    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.interp = 4;
+    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.wrap = [0 0 0];
+    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.mask = 1;
+    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.prefix = 'r';
+%     matlabbatch{2}.spm.spatial.coreg.estimate.ref = '<UNDEFINED>';
+    matlabbatch{2}.spm.spatial.coreg.estimate.ref = inputs{2, 1};
+    matlabbatch{2}.spm.spatial.coreg.estimate.source(1) = cfg_dep('Realign: Estimate & Reslice: Mean Image', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','rmean'));
+    matlabbatch{2}.spm.spatial.coreg.estimate.other(1) = cfg_dep('Realign: Estimate & Reslice: Resliced Images (Sess 1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','sess', '()',{1}, '.','rfiles'));
+    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.cost_fun = 'nmi';
+    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
+    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
+    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
+%     matlabbatch{3}.spm.spatial.preproc.channel.vols = '<UNDEFINED>';
+    matlabbatch{3}.spm.spatial.preproc.channel.vols = inputs{3, 1};
+    matlabbatch{3}.spm.spatial.preproc.channel.biasreg = 0.001;
+    matlabbatch{3}.spm.spatial.preproc.channel.biasfwhm = 60;
+    matlabbatch{3}.spm.spatial.preproc.channel.write = [1 1];
+    matlabbatch{3}.spm.spatial.preproc.tissue(1).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,1']};
+    matlabbatch{3}.spm.spatial.preproc.tissue(1).ngaus = 1;
+    matlabbatch{3}.spm.spatial.preproc.tissue(1).native = [1 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(1).warped = [1 1];
+    matlabbatch{3}.spm.spatial.preproc.tissue(2).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,2']};
+    matlabbatch{3}.spm.spatial.preproc.tissue(2).ngaus = 1;
+    matlabbatch{3}.spm.spatial.preproc.tissue(2).native = [1 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(2).warped = [1 1];
+    matlabbatch{3}.spm.spatial.preproc.tissue(3).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,3']};
+    matlabbatch{3}.spm.spatial.preproc.tissue(3).ngaus = 2;
+    matlabbatch{3}.spm.spatial.preproc.tissue(3).native = [1 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(3).warped = [1 1];
+    matlabbatch{3}.spm.spatial.preproc.tissue(4).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,4']};
+    matlabbatch{3}.spm.spatial.preproc.tissue(4).ngaus = 3;
+    matlabbatch{3}.spm.spatial.preproc.tissue(4).native = [1 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(4).warped = [0 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(5).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,5']};
+    matlabbatch{3}.spm.spatial.preproc.tissue(5).ngaus = 4;
+    matlabbatch{3}.spm.spatial.preproc.tissue(5).native = [1 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(5).warped = [0 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(6).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,6']};
+    matlabbatch{3}.spm.spatial.preproc.tissue(6).ngaus = 2;
+    matlabbatch{3}.spm.spatial.preproc.tissue(6).native = [0 0];
+    matlabbatch{3}.spm.spatial.preproc.tissue(6).warped = [0 0];
+    matlabbatch{3}.spm.spatial.preproc.warp.mrf = 1;
+    matlabbatch{3}.spm.spatial.preproc.warp.cleanup = 1;
+    matlabbatch{3}.spm.spatial.preproc.warp.reg = [0 0.001 0.5 0.05 0.2];
+    matlabbatch{3}.spm.spatial.preproc.warp.affreg = 'mni';
+    matlabbatch{3}.spm.spatial.preproc.warp.fwhm = 0;
+    matlabbatch{3}.spm.spatial.preproc.warp.samp = 3;
+    matlabbatch{3}.spm.spatial.preproc.warp.write = [0 1];
+    matlabbatch{3}.spm.spatial.preproc.warp.vox = NaN;
+    matlabbatch{3}.spm.spatial.preproc.warp.bb = [NaN NaN NaN
+                                                  NaN NaN NaN];
+    matlabbatch{4}.spm.spatial.normalise.write.subj.def(1) = cfg_dep('Segment: Forward Deformations', substruct('.','val', '{}',{3}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','fordef', '()',{':'}));
+    matlabbatch{4}.spm.spatial.normalise.write.subj.resample(1) = cfg_dep('Coregister: Estimate: Coregistered Images', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','cfiles'));
+    matlabbatch{4}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70
+                                                              78 76 85];
+    matlabbatch{4}.spm.spatial.normalise.write.woptions.vox = [1.43 1.43 3];
+    matlabbatch{4}.spm.spatial.normalise.write.woptions.interp = 4;
+    matlabbatch{4}.spm.spatial.normalise.write.woptions.prefix = 'w';
+    matlabbatch{5}.spm.spatial.smooth.data(1) = cfg_dep('Normalise: Write: Normalised Images (Subj 1)', substruct('.','val', '{}',{4}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
+    matlabbatch{5}.spm.spatial.smooth.fwhm = [6 6 6];
+    matlabbatch{5}.spm.spatial.smooth.dtype = 0;
+    matlabbatch{5}.spm.spatial.smooth.im = 0;
+    matlabbatch{5}.spm.spatial.smooth.prefix = 's';
+    
+    spm_jobman('run',matlabbatch);
+end
+
 
 function [X] = makeHRF(onsets)
 

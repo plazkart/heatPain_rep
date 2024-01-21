@@ -5,3 +5,5 @@ mainFolder = 'G:\_other\fMRS-heatPain';
 load([mainFolder '\_meta\structMeta.mat']);
 
 mainStruct.meta.folder = mainFolder;
+spm_default_path = 'C:\Users\Science\Documents\MATLAB\spm12';
+mainStruct.meta.SPMfolder = spm_default_path;
