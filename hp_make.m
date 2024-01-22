@@ -389,7 +389,10 @@ switch action
                 time_point_dynamics = time_point_dynamics(time_point_dynamics<sp.sz(2));
                 sp_tp = op_takeaverages(sp, time_point_dynamics);
                 tp_nam = sprintf('tp_%02i', i);
-                [mainStruct, sp_out] = hp_make('spectraPreprocessing', sp_tp , mainStruct, id, [tp_nam '_' sp_name]);
+                 [mainStruct, sp_out] = hp_make('spectraPreprocessing', sp_tp , mainStruct, id, [tp_nam '_' sp_name]);
+%                 [mainStruct, sp_out] = hp_make('spectraPreprocessing', ...
+%                 sp_tp , mainStruct, id, [tp_nam '_' sp_name], [4.2 5 1]);
+%                 %Made once for sub_11 /19-01-2024
                 sp_fpa_av_wr = sp_out;
 
                 % save intothe protocol
@@ -446,6 +449,13 @@ switch action
         mainStruct = varargin{2};
         id = varargin{3};
         sp_name = varargin{4};
+        if length(varargin)<5
+            pars{1, 1} = [1.9 2.1 1];
+            pars{2, 1} = {[4.4 5], 20};
+        else
+            pars{1, 1} = varargin{5};
+        end
+
 
         
         nam = sprintf('sub_%02i', id);
@@ -462,9 +472,12 @@ switch action
         fprintf(txt_protocol, 'op_freqAlignAverages_fd: pars - %3.1f %3.1f %3.1f \n', pars{1, 1}(:));
         sp_fpa_av = op_averaging(sp_fpa_1);  
         fprintf(txt_protocol, 'op_averaging \n');
-        pars{2, 1} = {[4.4 5], 20};
-        sp_fpa_av_wr = op_removeWater(sp_fpa_av, pars{2, 1}{1}, pars{2, 1}{2});
-        fprintf( txt_protocol, 'op_removeWater: pars - %3.1f %3.1f %02i \n', pars{2, 1}{:});
+        if size(pars, 1)>1
+            sp_fpa_av_wr = op_removeWater(sp_fpa_av, pars{2, 1}{1}, pars{2, 1}{2});
+            fprintf( txt_protocol, 'op_removeWater: pars - %3.1f %3.1f %02i \n', pars{2, 1}{:});
+        else
+            sp_fpa_av_wr = sp_fpa_av;
+        end
         fclose(txt_protocol);
         varargout{1} = sp_fpa_av_wr;
 
@@ -507,19 +520,25 @@ switch action
         time_point_matrix = zeros(mrs_NSAmax, 1);
 %         time_point_matrix(start_dynamic) = 1;
         task_starts = task_starts+12;
-        k=1; series_num = 1;
-        for i=start_dynamic:mrs_NSAmax
-            if (task_starts(k)>mrs_timings(i)) && (task_starts(k)<mrs_timings(i)+2)
-                time_point_matrix(i) = 1;
-                k=k+1; series_num = 1;
-                if k==length(task_starts)
-                    break
-                end
-            else
-                series_num = series_num +1;
-                time_point_matrix(i) = series_num;
-            end
+        task_starts(task_starts>mrs_NSAmax*2)=[];
+        task_starts_dyns = round(task_starts/2);
+        time_point_matrix(task_starts_dyns) = 1;
+        for k=2:6
+            time_point_matrix(setdiff(task_starts_dyns+k-1, find(time_point_matrix==1))) = k;
         end
+        time_point_matrix(mrs_NSAmax+1:end) = [];
+%         for i=start_dynamic:mrs_NSAmax
+%             if (task_starts(k)>mrs_timings(i)) && (task_starts(k)<mrs_timings(i)+2)
+%                 time_point_matrix(i) = 1;
+%                 k=k+1; series_num = 1;
+%                 if k==length(task_starts)
+%                     break
+%                 end
+%             else
+%                 series_num = series_num +1;
+%                 time_point_matrix(i) = series_num;
+%             end
+%         end
         
         mainStruct.(nam).proc.start_dynamic = start_dynamic;
         mainStruct.(nam).proc.tp_matrix = time_point_matrix;
@@ -534,6 +553,9 @@ switch action
         u = zeros(length(dt), 1);
         for i=1:length(task_starts)
             a = find(dt>task_starts(i));
+            if isempty(a)
+                continue
+            end
             lower_side = a(1)+ceil(dt(a(1))-task_starts(i));
             a = find(dt>task_starts(i)+3); %Fix stimulus
             upper_side = a(1)+ceil(dt(a(1))-(task_starts(i)+3));
@@ -656,7 +678,7 @@ switch action
             [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
         
     case 'count_fmriMetrics'
-        % use as hp_make('count_fmriMetrics', id, metrics)
+        % use as [~, metric] = hp_make('count_fmriMetrics', id, metrics)
         % 'beta' - quantifying mean ratio of beta coef. 1 (stim) and
         % constant term (last one)
 
@@ -667,7 +689,7 @@ switch action
         nam = sprintf('sub_%02i', id);
 
         [filepath,name] = fileparts(mainStruct.(nam).proc.sp_mask.path);
-%          callSmothing([filepath '\w' name '.nii']);
+          callSmothing([filepath '\w' name '.nii']);
         V_mask = spm_vol([filepath '\sw' name '.nii']);
         
         switch metrics
@@ -675,6 +697,7 @@ switch action
                 fils = dir([mainStruct.meta.folder '\' nam '\derived\res\beta_*']);
                 img_beta1= [fils(1).folder '\' fils(1).name];
                 img_beta2 = [fils(end).folder '\' fils(end).name];
+                V_img_1 = spm_vol(img_beta1);
                 makeSameResolution(V_img_1.fname, V_mask.fname);
                 img_mask = [filepath '\rsw' name '.nii'];
 
@@ -706,6 +729,7 @@ switch action
     case 'getResSP'
         %use as [~, resTable] = hp_make('getResSP', condition, met)
         %gives results of the spectroscopy experiment as a matrix
+        %available metabolites (met) - 'Cr', 'NAA', 'Glx'
         mainStruct = hp_make('load');
         
         condition = varargin{1};
@@ -729,7 +753,8 @@ switch action
                         resTable.LW.NAA(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWNAA;
                         resTable.LW.Cr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWCr;
                     else
-                        resTable.(met).Conc(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).Glx;
+                        resTable.(met).Conc(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).(met);
+                        resTable.(met).ConcCr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).(met)/mainStruct.(nam).proc.(condition).(tp_nam).Cr;
                     end
 
                 end
@@ -805,6 +830,23 @@ switch action
             end
         end
 
+    case 'sub11_waterBOLD'
+        % SPECIAL_CASE: subject 11 has unsupressed spectra made with heat
+        % pain stimulation (only act state, sham is OK)
+        %here linewidth and height of the water signal (4.65) was found
+
+        mainStruct = hp_make('load');
+        nam = sprintf('sub_%02i', 11);
+        for i=1:6
+            sp_nam = sprintf('tp_%02i', i);
+            sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_act.SDAT'], 1);
+            LW(i,1) = op_getLW(sp, 4.2, 5, 16);
+            HGHT(i, 1) = op_getPeakHeight(sp, 4.2, 5);
+        end
+        varargout{1} = LW;
+        varargout{2} = HGHT;
+                
+
 end
 end
 
@@ -832,7 +874,6 @@ function callNormilise(mask_image, deformations_map)
 
     spm_jobman('run',matlabbatch);
 end
-
 
 function callSmothing(img)
     matlabbatch{1}.spm.spatial.smooth.data(1) = {img};
@@ -952,7 +993,6 @@ function callfMRIProcessing(inputs)
     
     spm_jobman('run',matlabbatch);
 end
-
 
 function [X] = makeHRF(onsets)
 
