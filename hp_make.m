@@ -796,13 +796,81 @@ switch action
         rp_file = ([mainStruct.meta.folder '\' nam '\derived\rp_' nam '_func.txt']);
         SPM_file = ([mainStruct.meta.folder '\' nam '\derived\res\SPM.mat']);
         
-        %fmri_file = ('C:\Helen\Docs\DHiT\Alex\sub_08\func\sub_08_func.nii');
-        %rp_file = ('C:\Helen\Docs\DHiT\Alex\sub_08\derived\rp_sub_08_func.txt');
-        %SPM_file = ('C:\Helen\Docs\DHiT\Alex\sub_08\derived\res\SPM.mat');
+        %fmri_file = ('C:\Helen\Docs\DHiT\Alex\FMRS\sub_08\func\sub_08_func.nii');
+        %rp_file = ('C:\Helen\Docs\DHiT\Alex\FMRS\sub_08\derived\rp_sub_08_func.txt');
+        %SPM_file = ('C:\Helen\Docs\DHiT\Alex\FMRS\sub_08\derived\res\SPM.mat');
 
         Q6_time_series_task(fmri_file, rp_file, SPM_file);
         saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\Q6.jpg'],'jpg');
-         
+
+    case 'MaskMeanSignal'
+        % Insula (R ans L) and supplementary motor area (SMA)
+
+        id = varargin{1};
+        mainStruct = hp_make('load');
+        nam = sprintf('sub_%02i', id);
+
+        wr_func_file = ([mainStruct.meta.folder '\FMRS\' nam '\derived\wr' nam '_func.nii']);
+        InsulaL_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_left_thr20.nii']);
+        InsulaR_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_right_thr20.nii']);
+        SMA_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rSMA_thr20.nii']);
+
+        HeaderInfo0 = spm_vol(wr_func_file);
+        disp(HeaderInfo0(1));
+        HeaderInfoIL = spm_vol(InsulaL_mask_file);
+        %disp(HeaderInfoIL);
+        HeaderInfoIR = spm_vol(InsulaR_mask_file);
+        %disp(HeaderInfoIR);
+        HeaderInfoSMA = spm_vol(SMA_mask_file);
+        %disp(HeaderInfoSMA);
+
+        if HeaderInfo0(1).dim ~= HeaderInfoIL.dim
+            error('The dimensions of the wr_func_file and mask_files are NOT equal')
+        end
+
+        Data0 = spm_read_vols(HeaderInfo0);
+        DataIL = spm_read_vols(HeaderInfoIL);
+        DataIR = spm_read_vols(HeaderInfoIR);
+        DataSMA = spm_read_vols(HeaderInfoSMA);
+
+        L = length(Data0);
+        S_IL = zeros(1,L);
+        N_IL = 0;
+        S_IR = zeros(1,L);
+        N_IR = 0;
+        S_SMA = zeros(1,L);
+        N_SMA = 0;
+        for i = 1:HeaderInfo0(1).dim(1)
+            for j = 1:HeaderInfo0(1).dim(2)
+                for k = 1:HeaderInfo0(1).dim(3)
+                    if DataIL(i,j,k)>0
+                        N_IL = N_IL+1;
+                        for x = 1:L
+                            S_IL(x) = S_IL(x)+Data0(i,j,k,x);
+                        end
+                    end
+                    if DataIR(i,j,k)>0
+                        N_IR = N_IR+1;
+                        for x = 1:L
+                            S_IR(x) = S_IR(x)+Data0(i,j,k,x);
+                        end
+                    end
+                    if DataSMA(i,j,k)>0
+                        N_SMA = N_SMA+1;
+                        for x = 1:L
+                            S_SMA(x) = S_SMA(x)+Data0(i,j,k,x);
+                        end
+                    end
+                end
+            end
+        end
+        MeanIL = S_IL/N_IL;
+        writematrix(MeanIL,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanIL.txt'],"Delimiter",'tab');
+        MeanIR = S_IR/N_IR;
+        writematrix(MeanIR,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanIR.txt'],"Delimiter",'tab');
+        MeanSMA = S_SMA/N_SMA;
+        writematrix(MeanSMA,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanSMA.txt'],"Delimiter",'tab');
+
 
 
 
