@@ -552,12 +552,18 @@ switch action
         dt = [0:315*MR*2]/MR;
         u = zeros(length(dt), 1);
         for i=1:length(task_starts)
+%             if i==59
+%                 test = 1;
+%             end
             a = find(dt>task_starts(i));
             if isempty(a)
                 continue
             end
             lower_side = a(1)+ceil(dt(a(1))-task_starts(i));
             a = find(dt>task_starts(i)+3); %Fix stimulus
+            if isempty(a)
+                continue
+            end
             upper_side = a(1)+ceil(dt(a(1))-(task_starts(i)+3));
             u(lower_side:upper_side, 1)=1;
         end
@@ -593,6 +599,7 @@ switch action
                 for i = 1:length(copyFiles)
                     copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
                 end
+                hp_make('copyData', id,  out_path, 'makeProcessingList')
 
             case 'water_mrs'
                 k = 2;
@@ -603,6 +610,26 @@ switch action
                 for i = 1:length(copyFiles)
                     copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
                 end
+
+            case 'makeProcessingList'
+                fils = dir([ out_path '\*' nam '*.SDAT' ]);
+                fils_ref = dir([ out_path '\*' nam '_ref.SDAT' ]);
+%                 fils_lists = dir([out_path '\listProc.txt' ]);
+                if isempty(fils)
+                    error('There is no files to make processing list');
+                end
+                txtFil = fopen([out_path '\listProc.txt' ], 'a');
+
+                for i = 1:length(fils)
+                    if ~contains(fils(i).name, 'ref')
+                        fprintf(txtFil, '%s %s\n', fils(i).name, fils_ref(1).name);
+                    end
+                end
+                fclose(txtFil);
+
+
+
+                
                 
 
         end
@@ -611,10 +638,10 @@ switch action
     case 'getTableData'
         %use as hp_make('getTableData', path, id)
         mainStruct = hp_make('load');
-        path = varargin{1};
+        res_path = varargin{1};
         id = varargin{2};
         nam = sprintf('sub_%02i', id);
-        fils = dir([path '\' nam '*\table']);
+        fils = dir([res_path '\' nam '*\table']);
         tp_case = 0;
         for i=1:length(fils)
             temp = split(fils(i).folder, '_');
@@ -664,7 +691,7 @@ switch action
         nam = sprintf('sub_%02i', id);
 
         MRS_struct = CoRegStandAlone({[mainStruct.meta.folder mainStruct.(nam).folder '\sp\' nam '_sham.SDAT']},...
-            {[mainStruct.meta.folder mainStruct.(nam).folder '\anat\' nam '_anat.nii']})
+            {[mainStruct.meta.folder mainStruct.(nam).folder '\anat\' nam '_anat.nii']});
         mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived']);
         copyfile(MRS_struct.mask.vox1.outfile{1}, [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii']);
         delete(MRS_struct.mask.vox1.outfile{1});
@@ -729,7 +756,7 @@ switch action
     case 'getResSP'
         %use as [~, resTable] = hp_make('getResSP', condition, met)
         %gives results of the spectroscopy experiment as a matrix
-        %available metabolites (met) - 'Cr', 'NAA', 'Glx'
+        %available metabolites (met) - 'Cr', 'NAA', 'Glx', 'LW'
         mainStruct = hp_make('load');
         
         condition = varargin{1};
@@ -750,6 +777,9 @@ switch action
                 for ii=1:colNum
                     tp_nam = sprintf('tp_%02i', ii);
                     if contains(met, 'LW')
+                        if ~isfield(mainStruct.(nam).proc.(condition).(tp_nam), 'LWNAA')
+                            continue
+                        end
                         resTable.LW.NAA(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWNAA;
                         resTable.LW.Cr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWCr;
                     else
@@ -902,18 +932,64 @@ switch action
         % SPECIAL_CASE: subject 11 has unsupressed spectra made with heat
         % pain stimulation (only act state, sham is OK)
         %here linewidth and height of the water signal (4.65) was found
+        % use as [LW H] = hp_make('sub11_waterBOLD');
 
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', 11);
-        for i=1:6
-            sp_nam = sprintf('tp_%02i', i);
-            sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_act.SDAT'], 1);
-            LW(i,1) = op_getLW(sp, 4.2, 5, 16);
-            HGHT(i, 1) = op_getPeakHeight(sp, 4.2, 5);
+        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_act.SDAT'], 1);
+%         for i=1:6
+%             sp_nam = sprintf('tp_%02i', i);
+%             sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_act.SDAT'], 1);
+%             LW(i,1) = op_getLW(sp, 4.2, 5, 16);
+%             HGHT(i, 1) = op_getPeakHeight(sp, 4.2, 5);
+%         end
+        for i=1:sp.sz(2)
+            sp1= op_takeaverages(sp, i);
+            LW(i,1) = op_getLW(sp1, 4.2, 5, 16);
+            HGHT(i, 1) = op_getPeakHeight(sp1, 4.2, 5);
         end
         varargout{1} = LW;
         varargout{2} = HGHT;
+
+        regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
+        regressorList(:, 1) = regressorList(:, 1) - 17.87;
+        load('F:\_other\fMRS-heatPain\sub_11\spec_case\SPM.mat');
+        HRF = SPM.xX.X(:,1); 
+
+        resp_norm = LW/mean(LW)-1; resp_norm = circshift(resp_norm, 1);
+        resp_norm2 = H/mean(H)-1;resp_norm2 = circshift(resp_norm2, 1);
+
+        [r, p] = corr(HRF, resp_norm);
+        [r2, p2] = corr(HRF, resp_norm2);
+
+    case 'BOLDextraction'
+        %Here BOLD from three regions exctracted data was resampled
+        dats = readtable('C:\Users\Science\YandexDisk\Work\data\fMRS-hp\BOLD_mask.xlsx');
+        dats(2,:) = [];
+        for i=3:13
+            bold_dat{i-2}=dats(i*3-7:i*3-5, 3:172);
+            bold_dat{i-2} = table2array(bold_dat{i-2});
+            bold_dat{i-2}(isnan(bold_dat{i-2})) = [];
+            bold_dat{i-2}= reshape(bold_dat{i-2}, 3, length(bold_dat{i-2})/3);
+        end
+        for i=1:13-2
+            x_len = length(bold_dat{i});
+            for ii = 1:3
+                bold_dat_rsmp{i}(ii, :) = interp1 ([0:3:(x_len-1)*3], bold_dat{i}(ii, :), [0:2:(x_len-1)*3], 'pchip');
                 
+            end
+            bold_dat_rsmp{i}(4, :) = [0:2:(x_len-1)*3];
+        end
+        
+        for i=1:11
+            nam = sprintf('sub_%02i', i+2);
+            timingInfo = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+            for ii=1:size(timingInfo, 1)
+            end
+        end
+
+
+
 
 end
 end
@@ -985,79 +1061,85 @@ end
 
 
 function callfMRIProcessing(inputs)
-%     matlabbatch{1}.spm.spatial.realign.estwrite.data = {'<UNDEFINED>'};
-    matlabbatch{1}.spm.spatial.realign.estwrite.data = {inputs{1, 1}};
-    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.quality = 0.9;
-    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.sep = 4;
-    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.fwhm = 5;
-    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.rtm = 1;
-    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.interp = 2;
-    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.wrap = [0 0 0];
-    matlabbatch{1}.spm.spatial.realign.estwrite.eoptions.weight = '';
-    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.which = [2 1];
-    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.interp = 4;
-    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.wrap = [0 0 0];
-    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.mask = 1;
-    matlabbatch{1}.spm.spatial.realign.estwrite.roptions.prefix = 'r';
-%     matlabbatch{2}.spm.spatial.coreg.estimate.ref = '<UNDEFINED>';
-    matlabbatch{2}.spm.spatial.coreg.estimate.ref = inputs{2, 1};
-    matlabbatch{2}.spm.spatial.coreg.estimate.source(1) = cfg_dep('Realign: Estimate & Reslice: Mean Image', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','rmean'));
-    matlabbatch{2}.spm.spatial.coreg.estimate.other(1) = cfg_dep('Realign: Estimate & Reslice: Resliced Images (Sess 1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','sess', '()',{1}, '.','rfiles'));
-    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.cost_fun = 'nmi';
-    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
-    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
-    matlabbatch{2}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
-%     matlabbatch{3}.spm.spatial.preproc.channel.vols = '<UNDEFINED>';
-    matlabbatch{3}.spm.spatial.preproc.channel.vols = inputs{3, 1};
-    matlabbatch{3}.spm.spatial.preproc.channel.biasreg = 0.001;
-    matlabbatch{3}.spm.spatial.preproc.channel.biasfwhm = 60;
-    matlabbatch{3}.spm.spatial.preproc.channel.write = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(1).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,1']};
-    matlabbatch{3}.spm.spatial.preproc.tissue(1).ngaus = 1;
-    matlabbatch{3}.spm.spatial.preproc.tissue(1).native = [1 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(1).warped = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(2).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,2']};
-    matlabbatch{3}.spm.spatial.preproc.tissue(2).ngaus = 1;
-    matlabbatch{3}.spm.spatial.preproc.tissue(2).native = [1 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(2).warped = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(3).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,3']};
-    matlabbatch{3}.spm.spatial.preproc.tissue(3).ngaus = 2;
-    matlabbatch{3}.spm.spatial.preproc.tissue(3).native = [1 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(3).warped = [1 1];
-    matlabbatch{3}.spm.spatial.preproc.tissue(4).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,4']};
-    matlabbatch{3}.spm.spatial.preproc.tissue(4).ngaus = 3;
-    matlabbatch{3}.spm.spatial.preproc.tissue(4).native = [1 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(4).warped = [0 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(5).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,5']};
-    matlabbatch{3}.spm.spatial.preproc.tissue(5).ngaus = 4;
-    matlabbatch{3}.spm.spatial.preproc.tissue(5).native = [1 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(5).warped = [0 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(6).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,6']};
-    matlabbatch{3}.spm.spatial.preproc.tissue(6).ngaus = 2;
-    matlabbatch{3}.spm.spatial.preproc.tissue(6).native = [0 0];
-    matlabbatch{3}.spm.spatial.preproc.tissue(6).warped = [0 0];
-    matlabbatch{3}.spm.spatial.preproc.warp.mrf = 1;
-    matlabbatch{3}.spm.spatial.preproc.warp.cleanup = 1;
-    matlabbatch{3}.spm.spatial.preproc.warp.reg = [0 0.001 0.5 0.05 0.2];
-    matlabbatch{3}.spm.spatial.preproc.warp.affreg = 'mni';
-    matlabbatch{3}.spm.spatial.preproc.warp.fwhm = 0;
-    matlabbatch{3}.spm.spatial.preproc.warp.samp = 3;
-    matlabbatch{3}.spm.spatial.preproc.warp.write = [0 1];
-    matlabbatch{3}.spm.spatial.preproc.warp.vox = NaN;
-    matlabbatch{3}.spm.spatial.preproc.warp.bb = [NaN NaN NaN
-                                                  NaN NaN NaN];
-    matlabbatch{4}.spm.spatial.normalise.write.subj.def(1) = cfg_dep('Segment: Forward Deformations', substruct('.','val', '{}',{3}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','fordef', '()',{':'}));
-    matlabbatch{4}.spm.spatial.normalise.write.subj.resample(1) = cfg_dep('Coregister: Estimate: Coregistered Images', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','cfiles'));
-    matlabbatch{4}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70
-                                                              78 76 85];
-    matlabbatch{4}.spm.spatial.normalise.write.woptions.vox = [1.43 1.43 3];
-    matlabbatch{4}.spm.spatial.normalise.write.woptions.interp = 4;
-    matlabbatch{4}.spm.spatial.normalise.write.woptions.prefix = 'w';
-    matlabbatch{5}.spm.spatial.smooth.data(1) = cfg_dep('Normalise: Write: Normalised Images (Subj 1)', substruct('.','val', '{}',{4}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
-    matlabbatch{5}.spm.spatial.smooth.fwhm = [6 6 6];
-    matlabbatch{5}.spm.spatial.smooth.dtype = 0;
-    matlabbatch{5}.spm.spatial.smooth.im = 0;
-    matlabbatch{5}.spm.spatial.smooth.prefix = 's';
+    mainStruct = hp_make('load');
+    
+    matlabbatch{1}.spm.temporal.st.scans = {inputs{1, 1}};
+    matlabbatch{1}.spm.temporal.st.nslices = 35;
+    matlabbatch{1}.spm.temporal.st.tr = 3;
+    matlabbatch{1}.spm.temporal.st.ta = 2.91428571428571;
+    matlabbatch{1}.spm.temporal.st.so = [1 3 5 7 9 11 13 15 17 19 21 23 25 27 29 31 33 35 2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34];
+    matlabbatch{1}.spm.temporal.st.refslice = 1;
+    matlabbatch{1}.spm.temporal.st.prefix = 'a';
+    matlabbatch{2}.spm.spatial.realign.estwrite.data{1}(1) = cfg_dep('Slice Timing: Slice Timing Corr. Images (Sess 1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
+    matlabbatch{2}.spm.spatial.realign.estwrite.eoptions.quality = 0.9;
+    matlabbatch{2}.spm.spatial.realign.estwrite.eoptions.sep = 4;
+    matlabbatch{2}.spm.spatial.realign.estwrite.eoptions.fwhm = 5;
+    matlabbatch{2}.spm.spatial.realign.estwrite.eoptions.rtm = 1;
+    matlabbatch{2}.spm.spatial.realign.estwrite.eoptions.interp = 2;
+    matlabbatch{2}.spm.spatial.realign.estwrite.eoptions.wrap = [0 0 0];
+    matlabbatch{2}.spm.spatial.realign.estwrite.eoptions.weight = '';
+    matlabbatch{2}.spm.spatial.realign.estwrite.roptions.which = [2 1];
+    matlabbatch{2}.spm.spatial.realign.estwrite.roptions.interp = 4;
+    matlabbatch{2}.spm.spatial.realign.estwrite.roptions.wrap = [0 0 0];
+    matlabbatch{2}.spm.spatial.realign.estwrite.roptions.mask = 1;
+    matlabbatch{2}.spm.spatial.realign.estwrite.roptions.prefix = 'r';
+    matlabbatch{3}.spm.spatial.coreg.estimate.ref = inputs{2, 1};
+    matlabbatch{3}.spm.spatial.coreg.estimate.source(1) = cfg_dep('Realign: Estimate & Reslice: Mean Image', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','rmean'));
+    matlabbatch{3}.spm.spatial.coreg.estimate.other(1) = cfg_dep('Realign: Estimate & Reslice: Resliced Images (Sess 1)', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','sess', '()',{1}, '.','rfiles'));
+    matlabbatch{3}.spm.spatial.coreg.estimate.eoptions.cost_fun = 'nmi';
+    matlabbatch{3}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
+    matlabbatch{3}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
+    matlabbatch{3}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
+    matlabbatch{4}.spm.spatial.preproc.channel.vols = inputs{3, 1};
+    matlabbatch{4}.spm.spatial.preproc.channel.biasreg = 0.001;
+    matlabbatch{4}.spm.spatial.preproc.channel.biasfwhm = 60;
+    matlabbatch{4}.spm.spatial.preproc.channel.write = [1 1];
+    matlabbatch{4}.spm.spatial.preproc.tissue(1).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,1']};
+    matlabbatch{4}.spm.spatial.preproc.tissue(1).ngaus = 1;
+    matlabbatch{4}.spm.spatial.preproc.tissue(1).native = [1 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(1).warped = [1 1];
+    matlabbatch{4}.spm.spatial.preproc.tissue(2).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,2']};
+    matlabbatch{4}.spm.spatial.preproc.tissue(2).ngaus = 1;
+    matlabbatch{4}.spm.spatial.preproc.tissue(2).native = [1 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(2).warped = [1 1];
+    matlabbatch{4}.spm.spatial.preproc.tissue(3).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,3']};
+    matlabbatch{4}.spm.spatial.preproc.tissue(3).ngaus = 2;
+    matlabbatch{4}.spm.spatial.preproc.tissue(3).native = [1 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(3).warped = [1 1];
+    matlabbatch{4}.spm.spatial.preproc.tissue(4).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,4']};
+    matlabbatch{4}.spm.spatial.preproc.tissue(4).ngaus = 3;
+    matlabbatch{4}.spm.spatial.preproc.tissue(4).native = [1 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(4).warped = [0 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(5).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,5']};
+    matlabbatch{4}.spm.spatial.preproc.tissue(5).ngaus = 4;
+    matlabbatch{4}.spm.spatial.preproc.tissue(5).native = [1 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(5).warped = [0 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(6).tpm = {[mainStruct.meta.SPMfolder '\spm12\tpm\TPM.nii,6']};
+    matlabbatch{4}.spm.spatial.preproc.tissue(6).ngaus = 2;
+    matlabbatch{4}.spm.spatial.preproc.tissue(6).native = [0 0];
+    matlabbatch{4}.spm.spatial.preproc.tissue(6).warped = [0 0];
+    matlabbatch{4}.spm.spatial.preproc.warp.mrf = 1;
+    matlabbatch{4}.spm.spatial.preproc.warp.cleanup = 1;
+    matlabbatch{4}.spm.spatial.preproc.warp.reg = [0 0.001 0.5 0.05 0.2];
+    matlabbatch{4}.spm.spatial.preproc.warp.affreg = 'mni';
+    matlabbatch{4}.spm.spatial.preproc.warp.fwhm = 0;
+    matlabbatch{4}.spm.spatial.preproc.warp.samp = 3;
+    matlabbatch{4}.spm.spatial.preproc.warp.write = [0 1];
+    matlabbatch{4}.spm.spatial.preproc.warp.vox = NaN;
+    matlabbatch{4}.spm.spatial.preproc.warp.bb = [NaN NaN NaN
+        NaN NaN NaN];
+    matlabbatch{5}.spm.spatial.normalise.write.subj.def(1) = cfg_dep('Segment: Forward Deformations', substruct('.','val', '{}',{4}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','fordef', '()',{':'}));
+    matlabbatch{5}.spm.spatial.normalise.write.subj.resample(1) = cfg_dep('Coregister: Estimate: Coregistered Images', substruct('.','val', '{}',{3}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','cfiles'));
+    matlabbatch{5}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70
+        78 76 85];
+    matlabbatch{5}.spm.spatial.normalise.write.woptions.vox = [1.43 1.43 3];
+    matlabbatch{5}.spm.spatial.normalise.write.woptions.interp = 4;
+    matlabbatch{5}.spm.spatial.normalise.write.woptions.prefix = 'w';
+    matlabbatch{6}.spm.spatial.smooth.data(1) = cfg_dep('Normalise: Write: Normalised Images (Subj 1)', substruct('.','val', '{}',{5}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
+    matlabbatch{6}.spm.spatial.smooth.fwhm = [6 6 6];
+    matlabbatch{6}.spm.spatial.smooth.dtype = 0;
+    matlabbatch{6}.spm.spatial.smooth.im = 0;
+    matlabbatch{6}.spm.spatial.smooth.prefix = 's';
     
     spm_jobman('run',matlabbatch);
 end
