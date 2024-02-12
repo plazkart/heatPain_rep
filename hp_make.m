@@ -310,7 +310,7 @@ switch action
         for crun = 1:nrun
             inputs{1, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\res']}; % fMRI model specification: Directory - cfg_files
             for i=1:NSA
-                func_data(i, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swr' nam '_func.nii,' num2str(i)]};
+                func_data(i, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' nam '_func.nii,' num2str(i)]};
             end
             inputs{2, crun} = func_data; % fMRI model specification: Scans - cfg_files
             if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
@@ -319,7 +319,7 @@ switch action
             end
             inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
             inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
-            inputs{5, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\rp_' nam '_func.txt']}; % fMRI model specification: Multiple regressors - cfg_files
+            inputs{5, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\rp_a' nam '_func.txt']}; % fMRI model specification: Multiple regressors - cfg_files
         end
         spm('defaults', 'FMRI');
         spm_jobman('run', jobs, inputs{:});
@@ -822,10 +822,19 @@ switch action
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
-        fmri_file = ([mainStruct.meta.folder '\' nam '\derived\r' nam '_func.nii']);
-        rp_file = ([mainStruct.meta.folder '\' nam '\derived\rp_' nam '_func.txt']);
-        SPM_file = ([mainStruct.meta.folder '\' nam '\derived\res\SPM.mat']);
-        
+        fmri_file = dir([mainStruct.meta.folder '\' nam '\derived\r' nam '_func.nii']);
+        if isempty(fmri_file)
+            fmri_file = dir([mainStruct.meta.folder '\' nam '\derived\ra' nam '_func.nii']);
+        end
+        rp_file = dir([mainStruct.meta.folder '\' nam '\derived\rp_' nam '_func.txt']);
+        if isempty(rp_file)
+            rp_file = dir([mainStruct.meta.folder '\' nam '\derived\rp_a' nam '_func.txt']);
+        end
+        SPM_file = dir([mainStruct.meta.folder '\' nam '\derived\res\SPM.mat']);
+
+        fmri_file = fullfile(fmri_file(1).folder, fmri_file(1).name);
+        rp_file = fullfile(rp_file(1).folder, rp_file(1).name);
+        SPM_file = fullfile(SPM_file(1).folder, SPM_file(1).name);
         %fmri_file = ('C:\Helen\Docs\DHiT\Alex\FMRS\sub_08\func\sub_08_func.nii');
         %rp_file = ('C:\Helen\Docs\DHiT\Alex\FMRS\sub_08\derived\rp_sub_08_func.txt');
         %SPM_file = ('C:\Helen\Docs\DHiT\Alex\FMRS\sub_08\derived\res\SPM.mat');
@@ -964,13 +973,16 @@ switch action
 
     case 'BOLDextraction'
         %Here BOLD from three regions exctracted data was resampled
+        mainStruct = hp_make('load');
         dats = readtable('C:\Users\Science\YandexDisk\Work\data\fMRS-hp\BOLD_mask.xlsx');
         dats(2,:) = [];
         for i=3:13
             bold_dat{i-2}=dats(i*3-7:i*3-5, 3:172);
             bold_dat{i-2} = table2array(bold_dat{i-2});
             bold_dat{i-2}(isnan(bold_dat{i-2})) = [];
-            bold_dat{i-2}= reshape(bold_dat{i-2}, 3, length(bold_dat{i-2})/3);
+            if size(bold_dat{i-2}, 1)<2
+                bold_dat{i-2}= reshape(bold_dat{i-2}, 3, length(bold_dat{i-2})/3);
+            end
         end
         for i=1:13-2
             x_len = length(bold_dat{i});
@@ -983,12 +995,47 @@ switch action
         
         for i=1:11
             nam = sprintf('sub_%02i', i+2);
+            av_resp(i, :) = zeros(1, 10);
             timingInfo = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
-            for ii=1:size(timingInfo, 1)
+            startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+%             switch i
+%                 case 3
+%                     startTime = 14.50;  %for some reason there is no tag in xlxs file
+%                 case 4
+%                     startTime = 28.024;
+%                 otherwise
+%                     startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+%             end
+            timingInfo(:, 1) = timingInfo(:, 1) - startTime - (12 - mainStruct.(nam).proc.dummy_time);
+            timingInfo(:, 1) = round(timingInfo(:,1)/2);
+            for ii=1:10
+                time_slice = timingInfo(timingInfo(:,1)+ii<max(bold_dat_rsmp{i}(4, :))/2, 1);
+                time_slice = time_slice(time_slice+ii>0);
+                if time_slice(1)+ii==time_slice(2)
+                    break
+                end
+                av_resp(i, ii) = mean(bold_dat_rsmp{i}(1, time_slice+ii));
             end
+
+        end 
+        varargout{1} = av_resp;
+
+    case 'BugFix_GET_FMRI_START'
+        %Made 09-02-2024 AYakovlev
+        %here for different cases (subjects) different time of fMRI beginning
+%         for i=3:6
+%             nam = sprintf('sub_%02i', i);
+%             fils_tab = dir([mainStruct.meta.folder mainStruct.(nam).folder '\fmri*.xlsx']);
+%             a_table = readtable(fullfile(fils_tab(1).folder, fils_tab(1).name));
+        mainStruct = hp_make('load');
+        mainStruct.sub_03.proc.dummy_time = 8.840187073;
+        mainStruct.sub_04.proc.dummy_time = 9.657222748;
+        mainStruct.sub_05.proc.dummy_time = 9.07359314;
+        for i=6:13
+            nam = sprintf('sub_%02i', i);
+            mainStruct.(nam).proc.dummy_time = 12;
         end
-
-
+        hp_make('save', mainStruct);
 
 
 end
@@ -997,13 +1044,20 @@ end
 function startTime = getTTLtime(xlsfile)
 % stimulus times ONLY for MRS modality
     eventsTable = readtable(xlsfile);
-    TTL = strfind(eventsTable.Events, 'TTL');
-    for i=1:length(TTL)
-        if ~isempty(TTL{i})
-            startTime = eventsTable.Timestamp_msec_(i)/1000;
-            break
+    if iscell(eventsTable.Events)
+        TTL = strfind(eventsTable.Events, 'TTL');
+        for i=1:length(TTL)
+            if ~isempty(TTL{i})
+                startTime = eventsTable.Timestamp_msec_(i)/1000;
+                break
+            end
         end
+    else
+        tstamp_1 = eventsTable.Tec_C_-35;
+        thrs_1 = find(tstamp_1>0.1); thrs_1 = thrs_1(1);
+        startTime = eventsTable.Timestamp_msec_(thrs_1)/1000;
     end
+    
 
 end
 
@@ -1067,7 +1121,7 @@ function callfMRIProcessing(inputs)
     matlabbatch{1}.spm.temporal.st.nslices = 35;
     matlabbatch{1}.spm.temporal.st.tr = 3;
     matlabbatch{1}.spm.temporal.st.ta = 2.91428571428571;
-    matlabbatch{1}.spm.temporal.st.so = [1 3 5 7 9 11 13 15 17 19 21 23 25 27 29 31 33 35 2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34];
+    matlabbatch{1}.spm.temporal.st.so = [1	7	13	19	25	31	2	8	14	20	26	32	3	9	15	21	27	33	4	10	16	22	28	34	5	11	17	23	29	35	6	12	18	24	30];
     matlabbatch{1}.spm.temporal.st.refslice = 1;
     matlabbatch{1}.spm.temporal.st.prefix = 'a';
     matlabbatch{2}.spm.spatial.realign.estwrite.data{1}(1) = cfg_dep('Slice Timing: Slice Timing Corr. Images (Sess 1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
