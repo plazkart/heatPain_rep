@@ -8,22 +8,39 @@ temp = xlFile(:, 3);
 tempStart = min(temp(1:1000))+ (max(temp) - min(temp(1:1000)))*0.9;
 
 k=1;
-temp = abs(temp - tempStart);
+temp = (temp - tempStart);
 
-temp_minimals = temp<0.7;
-idxs = 1:length(temp);
-idxs = idxs(temp_minimals);
-
-startTimePoints = [];
-
-
-while length(idxs)>1
-    idxs_local = idxs((time(idxs)-time(idxs(1)))<2000);
-    [~, idxMin] = min(temp(idxs_local));
-    startTimePoints(k) = time(idxs(1)+idxMin-1);
-    k=k+1;
-    idxs = setdiff(idxs, idxs_local);
+%% new position
+stim_intervals = temp>0;
+time_intervals = time(stim_intervals);
+while length(time_intervals)>1
+    startTimePoints(k) = time_intervals(1);
+    change_condition = find(diff(time_intervals)>100);
+    if ~isempty(change_condition)
+        change_condition = change_condition(1);
+    else
+        change_condition = length(time_intervals);
+    end
+    k = k+1;
+    startTimePoints(k) = time_intervals(change_condition);
+    k = k+1;
+    time_intervals(1:change_condition) = [];
 end
+
+% temp_minimals = temp<0.7;
+% idxs = 1:length(temp);
+% idxs = idxs(temp_minimals);
+% 
+% startTimePoints = [];
+% 
+% 
+% while length(idxs)>1
+%     idxs_local = idxs((time(idxs)-time(idxs(1)))<2000);
+%     [~, idxMin] = min(temp(idxs_local));
+%     startTimePoints(k) = time(idxs(1)+idxMin-1);
+%     k=k+1;
+%     idxs = setdiff(idxs, idxs_local);
+% end
 
 startTimePoints = startTimePoints/1000;
 if mod(length(startTimePoints), 2)>0

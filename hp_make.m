@@ -94,7 +94,12 @@ switch action
         default_value = varargin{2};
         for i=1:mainStruct.meta.subNumbers
             nam = sprintf('sub_%02i', i); 
-            eval([fieldname ' = ' num2str(default_value) ';']);
+            if ~ischar(default_value)
+                eval([fieldname ' = ' num2str(default_value) ';']);
+            else
+                eval([fieldname ' = default_value;']);
+            end
+
         end
         mainStruct = hp_make('save', mainStruct);
 
@@ -285,7 +290,7 @@ switch action
             
 %             spm('defaults', 'FMRI');
 %             spm_jobman('run', jobs, inputs{:});
-            callfMRIProcessing(inputs);
+            callfMRIProcessing(inputs, mainStruct.(nam).proc.slice_order);
 
 
             fils_func = dir([mainStruct.meta.folder mainStruct.(nam).folder '\func\*' nam '*']);
@@ -1008,17 +1013,46 @@ switch action
 %             end
             timingInfo(:, 1) = timingInfo(:, 1) - startTime - (12 - mainStruct.(nam).proc.dummy_time);
             timingInfo(:, 1) = round(timingInfo(:,1)/2);
-            for ii=1:10
-                time_slice = timingInfo(timingInfo(:,1)+ii<max(bold_dat_rsmp{i}(4, :))/2, 1);
-                time_slice = time_slice(time_slice+ii>0);
-                if time_slice(1)+ii==time_slice(2)
-                    break
+            time_slice = timingInfo(timingInfo(:,1)<max(bold_dat_rsmp{i}(4, :))/2, 1);
+            dyns_perstim = diff(time_slice);dyns_perstim(length(time_slice)) = max(bold_dat_rsmp{i}(4, :))/2-time_slice(end);
+            x = zeros(10, 1);
+            for ii=1:length(time_slice)                
+                for ij=1:dyns_perstim(ii)
+                    if  time_slice(ii)+ij-1>0
+                        if ij>10
+                            break
+                        end
+                        av_resp(i, ij) = av_resp(i, ij) + bold_dat_rsmp{i}(3, time_slice(ii)+ij-1);
+                        x(ij, 1) = x(ij, 1)+1;
+                    end
                 end
-                av_resp(i, ii) = mean(bold_dat_rsmp{i}(1, time_slice+ii));
+                
             end
-
-        end 
+            for ij = 1:10
+                if x(ij)<15
+                    x(ij) = 0;
+                    av_resp(i, ij) = 0;
+                end
+            end
+            av_resp(i, x~=0) =av_resp(i, x~=0)./x(x~=0)';
+        end
+        for i=1:size(av_resp, 1)
+            av_resp(i, :) = av_resp(i, :)./mean(av_resp(i, av_resp(i, :)~=0));
+        end
         varargout{1} = av_resp;
+        %after that
+        % BOLD_response{1,1} = av_table;
+
+    case 'meanStimDuaration'
+        mainStruct = hp_make('load');
+        for i=1:11
+            nam = sprintf('sub_%02i', i+2);
+            timingInfo = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+            startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+            timingInfo(:, 1) = timingInfo(:, 1) - startTime - (12 - mainStruct.(nam).proc.dummy_time);
+            stim_duartion(i,1) = mean(timingInfo(:,2))
+        end
+        varargout{1} = stim_duartion;
 
     case 'BugFix_GET_FMRI_START'
         %Made 09-02-2024 AYakovlev
@@ -1114,14 +1148,20 @@ function BOLD_beta = countBeta(img_mask, img_beta1, img_beta2)
 end
 
 
-function callfMRIProcessing(inputs)
+function callfMRIProcessing(inputs, slice_case)
     mainStruct = hp_make('load');
+    
     
     matlabbatch{1}.spm.temporal.st.scans = {inputs{1, 1}};
     matlabbatch{1}.spm.temporal.st.nslices = 35;
     matlabbatch{1}.spm.temporal.st.tr = 3;
     matlabbatch{1}.spm.temporal.st.ta = 2.91428571428571;
-    matlabbatch{1}.spm.temporal.st.so = [1	7	13	19	25	31	2	8	14	20	26	32	3	9	15	21	27	33	4	10	16	22	28	34	5	11	17	23	29	35	6	12	18	24	30];
+    switch slice_case
+        case 'interleaved'
+            matlabbatch{1}.spm.temporal.st.so = [1	7	13	19	25	31	2	8	14	20	26	32	3	9	15	21	27	33	4	10	16	22	28	34	5	11	17	23	29	35	6	12	18	24	30];
+        case 'ascending'
+            matlabbatch{1}.spm.temporal.st.so = [1:35];
+    end
     matlabbatch{1}.spm.temporal.st.refslice = 1;
     matlabbatch{1}.spm.temporal.st.prefix = 'a';
     matlabbatch{2}.spm.spatial.realign.estwrite.data{1}(1) = cfg_dep('Slice Timing: Slice Timing Corr. Images (Sess 1)', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
