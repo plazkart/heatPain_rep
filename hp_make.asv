@@ -290,7 +290,7 @@ switch action
             
 %             spm('defaults', 'FMRI');
 %             spm_jobman('run', jobs, inputs{:});
-            callfMRIProcessing(inputs, mainStruct.(nam).proc.slice_order, 0);
+            callfMRIProcessing(inputs, mainStruct.(nam).proc.slice_order, 1);
 
 
             fils_func = dir([mainStruct.meta.folder mainStruct.(nam).folder '\func\*' nam '*']);
@@ -1232,9 +1232,8 @@ function callfMRIProcessing(inputs, slice_case, segment)
         matlabbatch{k}.spm.spatial.normalise.write.subj.def(1) = cfg_dep('Segment: Forward Deformations', substruct('.','val', '{}',{4}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','fordef', '()',{':'}));
     else
         temp_dir = split(inputs{2}, '\');
-        temp_dir{end} = ['y_' temp_dir{end}];
-        new_name = fullfile(temp_dir{:});
-        matlabbatch{k}.spm.spatial.normalise.write.subj.def(1) = {new_name};
+        new_name = 
+        matlabbatch{k}.spm.spatial.normalise.write.subj.def(1) = 
     end
     matlabbatch{k}.spm.spatial.normalise.write.subj.resample(1) = cfg_dep('Coregister: Estimate: Coregistered Images', substruct('.','val', '{}',{3}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','cfiles'));
     matlabbatch{k}.spm.spatial.normalise.write.woptions.bb = [-78 -112 -70
@@ -1243,11 +1242,7 @@ function callfMRIProcessing(inputs, slice_case, segment)
     matlabbatch{k}.spm.spatial.normalise.write.woptions.interp = 4;
     matlabbatch{k}.spm.spatial.normalise.write.woptions.prefix = 'w';
     k=k+1;
-    if segment
-        matlabbatch{k}.spm.spatial.smooth.data(1) = cfg_dep('Normalise: Write: Normalised Images (Subj 1)', substruct('.','val', '{}',{5}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
-        else
-        matlabbatch{5}.spm.spatial.smooth.data(1) = cfg_dep('Normalise: Write: Normalised Images (Subj 1)', substruct('.','val', '{}',{4}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
-    end
+    matlabbatch{k}.spm.spatial.smooth.data(1) = cfg_dep('Normalise: Write: Normalised Images (Subj 1)', substruct('.','val', '{}',{5}, '.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('()',{1}, '.','files'));
     matlabbatch{k}.spm.spatial.smooth.fwhm = [6 6 6];
     matlabbatch{k}.spm.spatial.smooth.dtype = 0;
     matlabbatch{k}.spm.spatial.smooth.im = 0;
