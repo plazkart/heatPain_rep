@@ -195,8 +195,10 @@ switch action
         end
 
     case 'parseFuncTable'
+        %use as mainStruct = hp_make('parseFuncTable', mainStruct, id);
+        mainStruct = hp_make('load');
         if length(varargin)>0
-            mainStruct = varargin{1};
+%             mainStruct = varargin{1};
             if length(varargin)>1
                 who_id = varargin{2};
             else
@@ -221,6 +223,12 @@ switch action
         else
             mainStruct.(nam).data_check.funcTable =0;
         end
+        fils_csv = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*.csv']);
+        if length(fils_xl)>1
+            mainStruct.(nam).funcTable.est = fils_csv(1).name;
+            copyfile([fils_csv(1).folder '\' fils_csv(1).name], [mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_est.csv']);
+        end
+        hp_make('save', mainStruct);
         
 %% input-output tasks
 
@@ -254,7 +262,6 @@ switch action
         end
         nam = sprintf('sub_%02i', id);
 
-        load([mainStruct.meta.folder '\_meta\spatial_proc.mat']); %loaded into matlabbatch
         % rewrite as needed 
 
         if mainStruct.(nam).data_check.fmri == 1
@@ -664,12 +671,26 @@ switch action
                 end
                 fclose(txtFil);
 
+            
 
 
-                
-                
+
+
 
         end
+
+    case 'estimations_parse'
+        %use as hp_make('estimations_parse', id)
+        hp_default
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+        if ~isempty(mainStruct.(nam).funcTable.est)
+            [rating, reaction_time] = AssessmentParser2([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_est.csv']);
+            mainStruct.(nam).proc.react_time = reaction_time;
+            mainStruct.(nam).proc.rating = rating;
+        end
+        mainStruct = hp_make('save', mainStruct);
+            
 
         %% Results parsing and summarising
     case 'getTableData'
@@ -843,6 +864,49 @@ switch action
         end
         varargout{1} = resTable;
 
+    case 'importResultsData'
+        %use as [~, resTable] = hp_make('importResultsData', ResCase, add_flag, add_parameter)
+        %add_parameter defines what value get from the data structure
+        mainStruct = hp_make('load');
+        
+        ResCase = varargin{1};
+        additional_flag = varargin{2};
+        add_parameter = varargin{3};
+        switch ResCase
+            case '_tp'
+                %additional_flag - is for normilising to Cr data values
+                out_nams = {}; k =1;
+                for id = 1:mainStruct.meta.subNumbers
+                    nam = sprintf('sub_%02i', id);
+                    if mainStruct.(nam).proc_check.bold_correction>0
+                        out_nams{k} = [nam '_sh']; 
+                        for ii = 1:6
+                            tp_nam = sprintf('tp_%02i', ii);
+                            temp0(k, ii) = mainStruct.(nam).proc.sham.(tp_nam).(add_parameter);
+                            temp1(k, ii) = mainStruct.(nam).proc.act.(tp_nam).(add_parameter);
+                            temp2(k, ii) = mainStruct.(nam).proc.act.([tp_nam '_bc']).(add_parameter);
+                            if additional_flag>0
+                                temp0(k, ii) = mainStruct.(nam).proc.sham.(tp_nam).(add_parameter)/mainStruct.(nam).proc.sham.(tp_nam).Cr;
+                                temp1(k, ii) = mainStruct.(nam).proc.act.(tp_nam).(add_parameter)/mainStruct.(nam).proc.act.(tp_nam).Cr;
+                                temp2(k, ii) = mainStruct.(nam).proc.act.([tp_nam '_bc']).(add_parameter)/mainStruct.(nam).proc.act.([tp_nam '_bc']).Cr;
+                            end
+                        end
+                        k = k + 1;
+%                         results_table = table([], zeros(mainStruct.meta.subNumbers*2, 6),'RowNames',{'name', ...
+%                     'tp_01', 'tp_02', 'tp_03', 'tp_04', 'tp_05', 'tp_06'});
+                    end
+                end
+                for i=1:length(out_nams)
+                    nam = sprintf('sub_%02i', i);
+                    out_nams{i+13} = [nam '_act'];
+                    out_nams{i+26} = [nam '_bc'];
+                end
+                results_table = array2table([temp0; temp1; temp2], 'VariableNames', {'tp_01', 'tp_02', 'tp_03', 'tp_04', 'tp_05', 'tp_06'}, 'RowNames', out_nams);
+                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '.csv']); 
+                varargout{1} = results_table;
+            end
+
+                
     case 'BOLD_correction'
         %here using NAA nad Cr signal parameters BOLD change detected
         %(should be narrowing of the lines) and specifically corrected
@@ -1024,6 +1088,42 @@ switch action
 
 
         %% Some not very important features or minor experiments (consider to remove it)
+    case 'GLM_estimation'
+        %Here in GLM design start of the stimulus presentation is engaged
+        %with button response
+        hp_default;
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+        mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived\res_exp']);
+        nrun = 1; % enter the number of runs here
+        jobfile = {[mainStruct.meta.folder '\_meta\stats_empty_job.m']};
+        jobs = repmat(jobfile, 1, nrun);
+        inputs = cell(5, nrun);
+        for crun = 1:nrun
+            inputs{1, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\res_exp']}; % fMRI model specification: Directory - cfg_files
+            fmri_img = spm_vol([mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' nam '_func.nii']); NSA = length(fmri_img);
+            for i=1:NSA
+                func_data(i, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' nam '_func.nii,' num2str(i)]};
+            end
+            inputs{2, crun} = func_data; % fMRI model specification: Scans - cfg_files
+            if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
+                startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+                regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+                if length(mainStruct.(nam).proc.react_time)<length(regressorList)
+                    delta = length(regressorList)-length(mainStruct.(nam).proc.react_time);
+                    mainStruct.(nam).proc.react_time(length(mainStruct.(nam).proc.react_time)+1:length(mainStruct.(nam).proc.react_time)+delta) = mean(mainStruct.(nam).proc.react_time);
+                    regressorList(:, 1) = startTime - startTime(1, 1) - (12 - mainStruct.(nam).proc.dummy_time)+mainStruct.(nam).proc.react_time;
+                else
+                    regressorList(:, 1) = startTime - startTime(1, 1) - (12 - mainStruct.(nam).proc.dummy_time)+mainStruct.(nam).proc.react_time;
+                end
+            end
+            inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
+            inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
+            inputs{5, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\rp_a' nam '_func.txt']}; % fMRI model specification: Multiple regressors - cfg_files
+        end
+        spm('defaults', 'FMRI');
+        spm_jobman('run', jobs, inputs{:});
+
     case 'BOLD effect estimate'
         %Here BOLD-effect using MRS daa was estimated.
         % these five lines is dedicated to obtain linewidth and normilise
@@ -1187,8 +1287,8 @@ switch action
         varargout{1} = VAStable;
         hp_make('save', mainStruct);
 
-        case 'BOLDextraction'
-                %Here BOLD from three regions exctracted data was resampled
+    case 'BOLDextraction'
+        %Here BOLD from three regions exctracted data was resampled
         mainStruct = hp_make('load');
         dats = readtable('C:\Users\Science\YandexDisk\Work\data\fMRS-hp\BOLD_mask.xlsx');
         dats(2,:) = [];
@@ -1282,19 +1382,39 @@ switch action
         end
         hp_make('save', mainStruct);
 
+    case 'BugFix_LWbc_toBC'
+        %Made 18-03-2024 AYakovlev
+        %transfer LC values to different place in the structure
+        mainStruct = hp_make('load');
+        
+        for i=1:mainStruct.meta.subNumbers
+            nam = sprintf('sub_%02i', i);
+            if mainStruct.(nam).proc_check.bold_correction
+            for j=1:6
+                tp_nam = sprintf('tp_%02i', j);
+                mainStruct.(nam).proc.act.([tp_nam '_bc']).LWCr = mainStruct.(nam).proc.act.(tp_nam).LWCr_bc;
+                mainStruct.(nam).proc.act.([tp_nam '_bc']).LWNAA = mainStruct.(nam).proc.act.(tp_nam).LWNAA_bc;
+                mainStruct.(nam).proc.act.(tp_nam).LWCr_bc = [];
+                mainStruct.(nam).proc.act.(tp_nam).LWNAA_bc = [];
+            end
+            end
+        end
+        hp_make('save', mainStruct);
 
 end
 end
 
 function startTime = getTTLtime(xlsfile)
 % stimulus times ONLY for MRS modality
+    k=1;
     eventsTable = readtable(xlsfile);
     if iscell(eventsTable.Events)
         TTL = strfind(eventsTable.Events, 'TTL');
         for i=1:length(TTL)
             if ~isempty(TTL{i})
-                startTime = eventsTable.Timestamp_msec_(i)/1000;
-                break
+                startTime(k) = eventsTable.Timestamp_msec_(i)/1000;
+                k=k+1;
+%                 break
             end
         end
     else
