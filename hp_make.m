@@ -70,12 +70,15 @@ switch action
         mainStruct.(nam).proc.start_dynamic = 0;
         mainStruct.(nam).proc.tp_matrix = [];
         mainStruct.(nam).proc_check.tp_matrix = 0;
-        mainStruct.(nam).proc.dummy_time = 0;
+        mainStruct.(nam).proc.dummy_time = 12;
+        mainStruct.(nam).proc.slice_order = 'interleaved';
         
         mainStruct.(nam).proc_check.timepoints_spectra.sham = 0;
         mainStruct.(nam).proc_check.timepoints_spectra.act = 0;
         mainStruct.(nam).proc_check.tp_spectra_res.sham = 0;
         mainStruct.(nam).proc_check.tp_spectra_res.act = 0;
+        mainStruct.(nam).proc_check.all.act = 0;
+        mainStruct.(nam).proc_check.all.sham = 0;
         
         mainStruct.meta.subNumbers = mainStruct.meta.subNumbers+1;
 
@@ -224,7 +227,7 @@ switch action
             mainStruct.(nam).data_check.funcTable =0;
         end
         fils_csv = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*.csv']);
-        if length(fils_xl)>1
+        if length(fils_csv)>1
             mainStruct.(nam).funcTable.est = fils_csv(1).name;
             copyfile([fils_csv(1).folder '\' fils_csv(1).name], [mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_est.csv']);
         end
@@ -297,7 +300,7 @@ switch action
             
 %             spm('defaults', 'FMRI');
 %             spm_jobman('run', jobs, inputs{:});
-            callfMRIProcessing(inputs, mainStruct.(nam).proc.slice_order, 0);
+            callfMRIProcessing(inputs, mainStruct.(nam).proc.slice_order, 1);
 
 
             fils_func = dir([mainStruct.meta.folder mainStruct.(nam).folder '\func\*' nam '*']);
@@ -621,6 +624,17 @@ switch action
         type = varargin{3};
         mainStruct = hp_make('load');
         switch type
+            case 'all_mrs'
+                cases = {'sham', 'act'};
+                for ii =1:2
+                    copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*all_' cases{ii} '.*']);
+                    for i = 1:length(copyFiles)
+                        if ~contains(copyFiles(i).name, 'bc')
+                            copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
+                        end
+                    end
+                end
+                hp_make('copyData', id,  out_path, 'makeProcessingList')
             case 'tp_mrs'
                 if mainStruct.(nam).proc_check.timepoints_spectra.sham<1
                     error('There is no time points divided data YET');
@@ -694,13 +708,17 @@ switch action
 
         %% Results parsing and summarising
     case 'getTableData'
-        %use as hp_make('getTableData', path, id)
+        %use as hp_make('getTableData', path, id, tp_case)
         mainStruct = hp_make('load');
         res_path = varargin{1};
         id = varargin{2};
         nam = sprintf('sub_%02i', id);
         fils = dir([res_path '\' nam '*\table']);
-        tp_case = 0;
+        if length(varargin)>2
+            tp_case = varargin{3};
+        else
+            tp_case = 0;
+        end
         for i=1:length(fils)
             temp = split(fils(i).folder, '_');
             if contains(fils(i).folder, 'bc')
@@ -726,15 +744,22 @@ switch action
             mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
             copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
             
-            if ~bc_case
-                tp_nam = sprintf('tp_%02i', tp_num);
+            if tp_case
+                if ~bc_case
+                    tp_nam = sprintf('tp_%02i', tp_num);
+                else
+                    tp_nam = sprintf('tp_%02i_bc', tp_num);
+                end
+                mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
+                mainStruct.(nam).proc.(mod_case).(tp_nam).path = [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name];
+                mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, tp_nam);
+                mainStruct.(nam).proc_check.tp_spectra_res.(mod_case) = tp_num;
             else
-                tp_nam = sprintf('tp_%02i_bc', tp_num);
+                mainStruct.(nam).proc.(mod_case).all.exist = 1;
+                mainStruct.(nam).proc.(mod_case).all.path = [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name];
+                mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, 'all');
+%                 mainStruct.(nam).proc_check.tp_spectra_res.(mod_case) = tp_num;
             end
-            mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
-            mainStruct.(nam).proc.(mod_case).(tp_nam).path = [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name];
-            mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, tp_nam);
-            mainStruct.(nam).proc_check.tp_spectra_res.(mod_case) = tp_num;
         end
          mainStruct = hp_make('save', mainStruct);
 
@@ -859,6 +884,44 @@ switch action
                         resTable.(met).ConcCr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).(met)/mainStruct.(nam).proc.(condition).(tp_nam).Cr;
                     end
 
+                end
+            end
+        end
+        varargout{1} = resTable;
+
+        %concentration quantification
+        %formula according DOI: 10.1007/s10334-012-0305-z
+        %formula (2) p.333
+%         IntRatio = I*N1*1*1/(2*35880*0.7);
+%         CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
+%             (met_frac_GM*met_R_GM+frac_WM*R_WM);
+
+
+    case 'getResSP_ALL'
+        %use as [~, resTable] = hp_make('getResSP_ALL', condition, met)
+        %gives results of the spectroscopy experiment as a matrix
+        %available metabolites (met) - 'Cr', 'NAA', 'Glx', 'LW'
+        mainStruct = hp_make('load');
+
+%         condition = varargin{1};
+%         met = varargin{2};
+
+%         if contains(met, 'LW')
+%             resTable.LW.Cr = zeros([mainStruct.meta.subNumbers, 6]);
+%             resTable.LW.NAA = zeros([mainStruct.meta.subNumbers, 6]);
+%         else
+%             resTable.(met).Conc = zeros([mainStruct.meta.subNumbers, 6]);
+%             resTable.(met).ConcCr = zeros([mainStruct.meta.subNumbers, 6]);
+%         end
+        
+        condition = {'sham' , 'act'};
+        for id=1:mainStruct.meta.subNumbers
+            for ii=1:2
+                nam = sprintf('sub_%02i', id);
+                if mainStruct.(nam).proc_check.all.(condition{ii})>0
+                    resTable.met.NAA(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.NAA;
+                    resTable.met.Cr(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.Cr;
+                    resTable.met.Glx(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.Glx;
                 end
             end
         end
@@ -1585,6 +1648,13 @@ function callfMRIProcessing(inputs, slice_case, segment)
     matlabbatch{k}.spm.spatial.smooth.prefix = 's';
     
     spm_jobman('run',matlabbatch);
+end
+
+function AbsoluteConcQunatification(LCmodelConc, met_pars)
+    
+    IntRatio = LCmodelConc*N1*1*1/(2*35880*0.7);
+    CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
+        (met_frac_GM*met_R_GM+frac_WM*R_WM);
 end
 
 function [X] = makeHRF(onsets)

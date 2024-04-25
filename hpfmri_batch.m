@@ -1,6 +1,10 @@
 function [mainStruct, varargout] = hpfmri_batch(action, varargin)
 %HPFMRI_BATCH Summary of this function goes here
-%   Detailed explanation goes here
+%   Sequence of analysis
+% hpfmri_batch('new', mainStruct);
+% hpfmri_batch('parseMRI', mainStruct, id);
+% hpfmri_batch('parseFuncTable', mainStruct, id);
+
 switch action
     case 'init'
         %use this just one time
@@ -44,6 +48,8 @@ switch action
         txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'w');
         fprintf(txt_protocol, 'Data processing steps log-file. \n Subject: %s \n Date: %s \n', nam, datetime("today"));
         fclose(txt_protocol);
+
+        hpfmri_batch('save', mainStruct)
 
         % parsing data and place it into correct directory
     case 'save'
@@ -137,7 +143,7 @@ switch action
             mainStruct.(nam).funcTable.est = fils_csv(1).name;
             copyfile([fils_csv(1).folder '\' fils_csv(1).name], [mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_est.csv']);
         end
-        hp_make('save', mainStruct);
+        hpfmri_batch('save', mainStruct);
 
 
         case 'fmri_proc'
@@ -192,7 +198,7 @@ switch action
             
 %             spm('defaults', 'FMRI');
 %             spm_jobman('run', jobs, inputs{:});
-%             callfMRIProcessing(inputs, 'ascending', 1);
+             callfMRIProcessing(inputs, 'interleaved', 1);
 
             %There are new files in the fmri-directory, so we will copy
             %them into another dir (called derived). Initial files are
@@ -236,8 +242,8 @@ switch action
                 if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
                     regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold' ses_nam '.xlsx']);
                     startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold' ses_nam '.xlsx']);
-%                     regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.(nam).proc.dummy_time);
-                    regressorList(:, 1) = regressorList(:, 1) - startTime(1);
+                     regressorList(:, 1) = regressorList(:, 1) - startTime(1) - (12 - mainStruct.(nam).proc.dummy_time);
+%                     regressorList(:, 1) = regressorList(:, 1) - startTime(1);
                 end
                 inputs{3, ii} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
                 inputs{4, ii} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
