@@ -467,9 +467,21 @@ switch action
                 end
 
             end
-            hp_make('save', mainStruct);
+        else
+            if mainStruct.(nam).proc_check.all.(condition)<1
+                return;
+            end
+            sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' condition '.SDAT'], 1);
+            sp.flags.averaged = 1;
+            sp.dims.averages = 0;
+            sp = op_autophase(sp, 1.8, 3.5, 0);
+            Cr_fwhm = op_getLW(sp, 2.8, 3.1);
+            NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+            mainStruct.(nam).proc.(condition).all.LWCr = Cr_fwhm;
+            mainStruct.(nam).proc.(condition).all.LWNAA = NAA_fwhm;
+            
         end
-
+        hp_make('save', mainStruct);
 
     case 'spectraPreprocessing'
         %use as hp_make('spectraPreprocessing', path, mainStruct, id)
@@ -484,7 +496,7 @@ switch action
         sp_name = varargin{4};
         if length(varargin)<5
             pars{1, 1} = [1.9 2.1 1];
-            pars{2, 1} = {[4.4 5], 20};
+            pars{2, 1} = {[4.4 5], 15};
         else
             pars{1, 1} = varargin{5};
         end
@@ -527,7 +539,7 @@ switch action
         if floor(mod(mainStruct.(nam).data_check.funcTable, 10^k)/10^(k-1))>0
             ttlTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
             regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
-            task_starts = regressorList(:,1)-ttlTime;
+            task_starts = regressorList(:,1)-ttlTime(1);
             stim_dur = regressorList(:,2);
         else 
             error("There is no stimulation table data to make time_point matrix");
@@ -967,7 +979,45 @@ switch action
                 results_table = array2table([temp0; temp1; temp2], 'VariableNames', {'tp_01', 'tp_02', 'tp_03', 'tp_04', 'tp_05', 'tp_06'}, 'RowNames', out_nams);
                 writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '.csv']); 
                 varargout{1} = results_table;
-            end
+            case 'all'
+                out_nams = {}; k = 1;
+                for id = 1:mainStruct.meta.subNumbers
+                    nam = sprintf('sub_%02i', id);
+                    out_nams{id} = nam;
+                    if mainStruct.(nam).proc_check.all.sham<1
+                        continue;
+                    end
+                    if contains(add_parameter, 'all')
+                        fildNames = fieldnames(mainStruct.(nam).proc.sham.all);
+                        for ii = 3:length(fildNames)
+%                             temp0(id, ii-2) = mainStruct.(nam).proc.sham.all.(fildNames{ii});
+                            temp0(id, ii-2) = mainStruct.(nam).proc.act.all.(fildNames{ii});
+                        end
+                    else
+                        temp0(id, 1) = mainStruct.(nam).proc.sham.all.(add_parameter);
+                        temp1(id, 1) = mainStruct.(nam).proc.act.all.(add_parameter);
+                    end
+
+                    %k = k+1;
+                end
+                if contains(add_parameter, 'all')
+                    results_table = array2table([temp0], 'VariableNames', {fildNames{3:end}}, 'RowNames', out_nams');
+                else
+                    results_table = array2table([temp0, temp1], 'VariableNames', {'rest', 'act'}, 'RowNames', out_nams');
+                end
+                %remove rows without data
+                remove_rows = [];
+                for i=1:mainStruct.meta.subNumbers
+                    if results_table.NAA(i)==0
+                         remove_rows = [remove_rows i];
+                    end
+                end
+                results_table(remove_rows,:) = [];
+                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '_all_act.csv']); 
+                varargout{1} = results_table;
+
+
+        end
 
                 
     case 'BOLD_correction'
