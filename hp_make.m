@@ -755,6 +755,7 @@ switch action
             end
             mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
             copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
+            copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
             
             if tp_case
                 if ~bc_case
@@ -791,6 +792,24 @@ switch action
         mainStruct.(nam).proc.(condition).(tp_nam).NAAerr = resTab.SDpct(20);
         mainStruct.(nam).proc.(condition).(tp_nam).Crerr = resTab.SDpct(21);
         mainStruct.(nam).proc.(condition).(tp_nam).Glxerr = resTab.SDpct(22);
+%% MRS quality control procedures
+% draw MR-spectra
+    case 'coord_drawSpectra'
+        %use as hp_make('coord_drawSpectra', id, condition, tp_number)
+        mainStruct = hp_make('load');
+        condition = varargin{2};
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+
+        if mainStruct.(nam).proc_check.all.(condition)>0
+            coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\all_' condition '\coord'];
+            sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
+            fit_figure = io_readlcmcoord_getBackground(coordPath,'fit');
+            plot(sp_figure.ppm, [sp_figure.specs, fit_figure.specs]);
+            set(gca,'Xdir','reverse');
+            exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' nam '_' condition '.png'], 'BackgroundColor', 'white');
+        end
+
 
     case 'spVoxelPlacement'
         % use as hp_make('spVoxelPlacement', id)
@@ -940,9 +959,13 @@ switch action
         varargout{1} = resTable;
 
     case 'importResultsData'
-        %use as [~, resTable] = hp_make('importResultsData', ResCase, add_flag, add_parameter)
+        %use as [~, resTable] = hp_make('importResultsData', ResCase, add_flag, add_parameter, mainStruct)
         %add_parameter defines what value get from the data structure
-        mainStruct = hp_make('load');
+        if length(varargin)<4
+            mainStruct = hp_make('load');
+        else
+            mainStruct = varargin{4};
+        end
         
         ResCase = varargin{1};
         additional_flag = varargin{2};
@@ -990,8 +1013,8 @@ switch action
                     if contains(add_parameter, 'all')
                         fildNames = fieldnames(mainStruct.(nam).proc.sham.all);
                         for ii = 3:length(fildNames)
-%                             temp0(id, ii-2) = mainStruct.(nam).proc.sham.all.(fildNames{ii});
-                            temp0(id, ii-2) = mainStruct.(nam).proc.act.all.(fildNames{ii});
+                            temp0(id, ii-2) = mainStruct.(nam).proc.sham.all.(fildNames{ii});
+%                             temp0(id, ii-2) = mainStruct.(nam).proc.act.all.(fildNames{ii});
                         end
                     else
                         temp0(id, 1) = mainStruct.(nam).proc.sham.all.(add_parameter);
@@ -1001,7 +1024,7 @@ switch action
                     %k = k+1;
                 end
                 if contains(add_parameter, 'all')
-                    results_table = array2table([temp0], 'VariableNames', {fildNames{3:end}}, 'RowNames', out_nams');
+                    results_table = array2table([temp0], 'VariableNames', {'NAA', 'Cr', 'Glx', 'NAAerr', 'Crerr', 'Glxerr', 'LWCr', 'LWNAA' }, 'RowNames', out_nams');
                 else
                     results_table = array2table([temp0, temp1], 'VariableNames', {'rest', 'act'}, 'RowNames', out_nams');
                 end
@@ -1013,7 +1036,7 @@ switch action
                     end
                 end
                 results_table(remove_rows,:) = [];
-                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '_all_act.csv']); 
+                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '_all_sham.csv']); 
                 varargout{1} = results_table;
 
 
