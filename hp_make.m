@@ -79,6 +79,7 @@ switch action
         mainStruct.(nam).proc_check.tp_spectra_res.act = 0;
         mainStruct.(nam).proc_check.all.act = 0;
         mainStruct.(nam).proc_check.all.sham = 0;
+        mainStruct.(nam).proc_check.all.mrs_QA = 1;
         
         mainStruct.meta.subNumbers = mainStruct.meta.subNumbers+1;
 
@@ -496,7 +497,7 @@ switch action
         sp_name = varargin{4};
         if length(varargin)<5
             pars{1, 1} = [1.9 2.1 1];
-            pars{2, 1} = {[4.4 5], 15};
+            pars{2, 1} = {[4.1 5.1], 6};
         else
             pars{1, 1} = varargin{5};
         end
