@@ -72,6 +72,7 @@ switch action
         mainStruct.(nam).proc_check.tp_matrix = 0;
         mainStruct.(nam).proc.dummy_time = 12;
         mainStruct.(nam).proc.slice_order = 'interleaved';
+        mainStruct.(nam).proc.displacentT2 = 0;
         
         mainStruct.(nam).proc_check.timepoints_spectra.sham = 0;
         mainStruct.(nam).proc_check.timepoints_spectra.act = 0;
@@ -339,6 +340,45 @@ switch action
         end
         spm('defaults', 'FMRI');
         spm_jobman('run', jobs, inputs{:});
+
+        % MRI processing
+    case 'T2_movements_check'
+        % use as hp_make('T2_movements_check', id)
+        mainStruct = hp_make('load');
+
+        if nargin<2
+            error('There no subject name to process');
+        end
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+
+        %look for t2 images
+        filst2 = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*T2*.nii']);
+        if length(filst2)>1
+            for i =1:2
+%                 series = split(filst2(i).name, '_');
+%                 series = regexp(series{end}, '\d*', 'match');
+%                 series = series{end};
+%                 series = str2num(series);
+%                 filst2(i).series = series;
+                input2align{i, 1} = [filst2(i).folder '\' filst2(i).name];
+            end
+
+            alignImages(input2align);
+            filtxt = dir([mainStruct.meta.folder mainStruct.(nam).folder '\rp_*.txt']);
+            copyfile([filtxt.folder '\' filtxt.name], [filtxt.folder '\meta\displacement_t2.txt']);
+            filtxt = fopen([filtxt.folder '\meta\displacement_t2.txt'], 'r');
+            A = fscanf(filtxt, '%f');
+            A = A(7:9);
+            A = sqrt(sum(A.^2));
+            mainStruct.(nam).proc.displacentT2 = A;
+
+            mainStruct = hp_make('save', mainStruct);
+
+        end
+
+            
+
 
 % MRS processing
         
@@ -1722,6 +1762,19 @@ function callfMRIProcessing(inputs, slice_case, segment)
     matlabbatch{k}.spm.spatial.smooth.prefix = 's';
     
     spm_jobman('run',matlabbatch);
+end
+
+function alignImages(input_data)
+matlabbatch{1}.spm.spatial.realign.estimate.data = {input_data};
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.quality = 0.9;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.sep = 4;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.fwhm = 5;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.rtm = 1;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.interp = 2;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.wrap = [0 0 0];
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.weight = '';
+
+spm_jobman('run',matlabbatch);
 end
 
 function AbsoluteConcQunatification(LCmodelConc, met_pars)
