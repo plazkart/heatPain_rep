@@ -922,8 +922,29 @@ switch action
         varargout{1} = resTable;
 
         %concentration quantification
+    case 'AbsoluteConc'
+        %use as [~, CONC ] = hp_make('AbsoluteConc', id,  condition, met)
         %formula according DOI: 10.1007/s10334-012-0305-z
         %formula (2) p.333
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        condition = varargin{2};
+        met = varargin{3};
+        nam = sprintf('sub_%02i', id);
+
+        LCmodelConc = mainStruct.(nam).proc.(condition).all.(met);
+        met_pars{1} = met;
+        met_pars{2} = mainStruct.(nam).proc.(condition).all.GM;
+        met_pars{3} = mainStruct.(nam).proc.(condition).all.WM;
+        met_pars{4} = mainStruct.(nam).proc.(condition).all.CSF;
+
+        CONC = AbsoluteConcQunatification(LCmodelConc, met_pars);
+        mainStruct.(nam).proc.(condition).all.([met '_AC']) = CONC;
+        mainStruct.(nam).proc_check.absConc = 1;
+        varargout{1}= CONC;
+
+        mainStruct = hp_make('save', mainStruct);
+
 %         IntRatio = I*N1*1*1/(2*35880*0.7);
 %         CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
 %             (met_frac_GM*met_R_GM+frac_WM*R_WM);
@@ -1724,11 +1745,34 @@ function callfMRIProcessing(inputs, slice_case, segment)
     spm_jobman('run',matlabbatch);
 end
 
-function AbsoluteConcQunatification(LCmodelConc, met_pars)
-    
+function CONC = AbsoluteConcQunatification(LCmodelConc, met_pars)
+    met = met_pars{1};
+    frac_GM = met_pars{2};
+    frac_WM = met_pars{3};
+    frac_CSF = met_pars{4};
+
+    switch met
+        case 'Glx'
+            N1 = 1;
+            %accroding to https://www.mr.ethz.ch/abstracts/files/ismrm15_0202.pdf
+            met_R_GM = exp(-35/144); %echo time/T2 of glu in GM
+            met_R_WM = exp(-35/106); %echo time/T2 of glu in WM
+            N_H = 1;
+            met_frac_GM = 1;
+            met_frac_WM = 1;
+    end
+
+    %Water parameters
+    %https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/mrm.20901
+    R_GM = exp(-35/93);   CONT_GM = 43300/55000;
+    R_WM = exp(-35/73);  CONT_WM = 35580/55000;
+    R_CSF = exp(-35/23);  CONT_CSF = 55000/55000;
+
+    CONC_wat = 55000;
+
     IntRatio = LCmodelConc*N1*1*1/(2*35880*0.7);
     CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
-        (met_frac_GM*met_R_GM+frac_WM*R_WM);
+        (met_frac_GM*met_R_GM+frac_WM*met_R_WM);
 end
 
 function [X] = makeHRF(onsets)
