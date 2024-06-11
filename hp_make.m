@@ -70,12 +70,17 @@ switch action
         mainStruct.(nam).proc.start_dynamic = 0;
         mainStruct.(nam).proc.tp_matrix = [];
         mainStruct.(nam).proc_check.tp_matrix = 0;
-        mainStruct.(nam).proc.dummy_time = 0;
+        mainStruct.(nam).proc.dummy_time = 12;
+        mainStruct.(nam).proc.slice_order = 'interleaved';
+        mainStruct.(nam).proc.displacentT2 = 0;
         
         mainStruct.(nam).proc_check.timepoints_spectra.sham = 0;
         mainStruct.(nam).proc_check.timepoints_spectra.act = 0;
         mainStruct.(nam).proc_check.tp_spectra_res.sham = 0;
         mainStruct.(nam).proc_check.tp_spectra_res.act = 0;
+        mainStruct.(nam).proc_check.all.act = 0;
+        mainStruct.(nam).proc_check.all.sham = 0;
+        mainStruct.(nam).proc_check.all.mrs_QA = 1;
         
         mainStruct.meta.subNumbers = mainStruct.meta.subNumbers+1;
 
@@ -195,8 +200,10 @@ switch action
         end
 
     case 'parseFuncTable'
+        %use as mainStruct = hp_make('parseFuncTable', mainStruct, id);
+        mainStruct = hp_make('load');
         if length(varargin)>0
-            mainStruct = varargin{1};
+%             mainStruct = varargin{1};
             if length(varargin)>1
                 who_id = varargin{2};
             else
@@ -221,6 +228,12 @@ switch action
         else
             mainStruct.(nam).data_check.funcTable =0;
         end
+        fils_csv = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*.csv']);
+        if length(fils_csv)>1
+            mainStruct.(nam).funcTable.est = fils_csv(1).name;
+            copyfile([fils_csv(1).folder '\' fils_csv(1).name], [mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_est.csv']);
+        end
+        hp_make('save', mainStruct);
         
 %% input-output tasks
 
@@ -254,7 +267,6 @@ switch action
         end
         nam = sprintf('sub_%02i', id);
 
-        load([mainStruct.meta.folder '\_meta\spatial_proc.mat']); %loaded into matlabbatch
         % rewrite as needed 
 
         if mainStruct.(nam).data_check.fmri == 1
@@ -290,7 +302,7 @@ switch action
             
 %             spm('defaults', 'FMRI');
 %             spm_jobman('run', jobs, inputs{:});
-            callfMRIProcessing(inputs, mainStruct.(nam).proc.slice_order, 0);
+            callfMRIProcessing(inputs, mainStruct.(nam).proc.slice_order, 1);
 
 
             fils_func = dir([mainStruct.meta.folder mainStruct.(nam).folder '\func\*' nam '*']);
@@ -328,6 +340,45 @@ switch action
         end
         spm('defaults', 'FMRI');
         spm_jobman('run', jobs, inputs{:});
+
+        % MRI processing
+    case 'T2_movements_check'
+        % use as hp_make('T2_movements_check', id)
+        mainStruct = hp_make('load');
+
+        if nargin<2
+            error('There no subject name to process');
+        end
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+
+        %look for t2 images
+        filst2 = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*T2*.nii']);
+        if length(filst2)>1
+            for i =1:2
+%                 series = split(filst2(i).name, '_');
+%                 series = regexp(series{end}, '\d*', 'match');
+%                 series = series{end};
+%                 series = str2num(series);
+%                 filst2(i).series = series;
+                input2align{i, 1} = [filst2(i).folder '\' filst2(i).name];
+            end
+
+            alignImages(input2align);
+            filtxt = dir([mainStruct.meta.folder mainStruct.(nam).folder '\rp_*.txt']);
+            copyfile([filtxt.folder '\' filtxt.name], [filtxt.folder '\meta\displacement_t2.txt']);
+            filtxt = fopen([filtxt.folder '\meta\displacement_t2.txt'], 'r');
+            A = fscanf(filtxt, '%f');
+            A = A(7:9);
+            A = sqrt(sum(A.^2));
+            mainStruct.(nam).proc.displacentT2 = A;
+
+            mainStruct = hp_make('save', mainStruct);
+
+        end
+
+            
+
 
 % MRS processing
         
@@ -421,27 +472,57 @@ switch action
         end
     
     case 'LinewidthAssessment'
-        %use as hp_make('LinewidthAssessment', id, condition, tp)
+        %use as hp_make('LinewidthAssessment', id, condition, tp, bc)
         % assess FWHM of Cr and NAA signals
         mainStruct = hp_make('load');
         id = varargin{1};
         condition = varargin{2};
         tp = varargin{3};
+        if length(varargin)>3
+            bc = varargin{4};
+        else 
+            bc = 0;
+        end
+
         nam = sprintf('sub_%02i', id);
         
         if tp
             for i=1:mainStruct.(nam).proc_check.tp_spectra_res.(condition)
                 sp_nam = sprintf('tp_%02i', i);
-                sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '.SDAT'], 1);
+                if bc
+                    sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '_bc.SDAT'], 1);
+                else
+                    sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '.SDAT'], 1);
+                end
+                sp.flags.averaged = 1;
+                sp.dims.averages = 0;
+                sp = op_autophase(sp, 1.8, 3.5, 0);
                 Cr_fwhm = op_getLW(sp, 2.8, 3.1);
                 NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+                if bc
+                    mainStruct.(nam).proc.(condition).(sp_nam).LWCr_bc = Cr_fwhm;
+                    mainStruct.(nam).proc.(condition).(sp_nam).LWNAA_bc = NAA_fwhm;
+                else
+                    mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
+                    mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
+                end
 
-                mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
-                mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
             end
-            hp_make('save', mainStruct);
+        else
+            if mainStruct.(nam).proc_check.all.(condition)<1
+                return;
+            end
+            sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' condition '.SDAT'], 1);
+            sp.flags.averaged = 1;
+            sp.dims.averages = 0;
+            sp = op_autophase(sp, 1.8, 3.5, 0);
+            Cr_fwhm = op_getLW(sp, 2.8, 3.1);
+            NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+            mainStruct.(nam).proc.(condition).all.LWCr = Cr_fwhm;
+            mainStruct.(nam).proc.(condition).all.LWNAA = NAA_fwhm;
+            
         end
-
+        hp_make('save', mainStruct);
 
     case 'spectraPreprocessing'
         %use as hp_make('spectraPreprocessing', path, mainStruct, id)
@@ -456,7 +537,7 @@ switch action
         sp_name = varargin{4};
         if length(varargin)<5
             pars{1, 1} = [1.9 2.1 1];
-            pars{2, 1} = {[4.4 5], 20};
+            pars{2, 1} = {[4.1 5.1], 6};
         else
             pars{1, 1} = varargin{5};
         end
@@ -499,7 +580,7 @@ switch action
         if floor(mod(mainStruct.(nam).data_check.funcTable, 10^k)/10^(k-1))>0
             ttlTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
             regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
-            task_starts = regressorList(:,1)-ttlTime;
+            task_starts = regressorList(:,1)-ttlTime(1);
             stim_dur = regressorList(:,2);
         else 
             error("There is no stimulation table data to make time_point matrix");
@@ -596,11 +677,36 @@ switch action
         type = varargin{3};
         mainStruct = hp_make('load');
         switch type
+            case 'all_mrs'
+                cases = {'sham', 'act'};
+                for ii =1:2
+                    copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*all_' cases{ii} '.*']);
+                    for i = 1:length(copyFiles)
+                        if ~contains(copyFiles(i).name, 'bc')
+                            copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
+                        end
+                    end
+                end
+                hp_make('copyData', id,  out_path, 'makeProcessingList')
             case 'tp_mrs'
                 if mainStruct.(nam).proc_check.timepoints_spectra.sham<1
                     error('There is no time points divided data YET');
                 end
                 copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*']);
+                for i = 1:length(copyFiles)
+                    if ~contains(copyFiles(i).name, 'bc')
+                        copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
+                    end
+                end
+                hp_make('copyData', id,  out_path, 'makeProcessingList')
+            case 'tp_mrs_bc'
+                if mainStruct.(nam).proc_check.timepoints_spectra.sham<1
+                    error('There is no time points divided data YET');
+                end
+                if mainStruct.(nam).proc_check.bold_correction<1
+                    error('There is no BOLD correction done yet');
+                end
+                copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*bc*']);
                 for i = 1:length(copyFiles)
                     copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
                 end
@@ -632,44 +738,84 @@ switch action
                 end
                 fclose(txtFil);
 
+            
 
 
-                
-                
+
+
 
         end
 
+    case 'estimations_parse'
+        %use as hp_make('estimations_parse', id)
+        hp_default
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+        if ~isempty(mainStruct.(nam).funcTable.est)
+            [rating, reaction_time] = AssessmentParser2([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_est.csv']);
+            mainStruct.(nam).proc.react_time = reaction_time;
+            mainStruct.(nam).proc.rating = rating;
+        end
+        mainStruct = hp_make('save', mainStruct);
+            
+
         %% Results parsing and summarising
     case 'getTableData'
-        %use as hp_make('getTableData', path, id)
+        %use as hp_make('getTableData', path, id, tp_case)
         mainStruct = hp_make('load');
         res_path = varargin{1};
         id = varargin{2};
         nam = sprintf('sub_%02i', id);
         fils = dir([res_path '\' nam '*\table']);
-        tp_case = 0;
+        if length(varargin)>2
+            tp_case = varargin{3};
+        else
+            tp_case = 0;
+        end
         for i=1:length(fils)
             temp = split(fils(i).folder, '_');
+            if contains(fils(i).folder, 'bc')
+                bc_case = 1;
+                temp = temp(1:end-1);
+            else 
+                bc_case = 0;
+            end
             mod_case = temp{end};
             if contains(fils(i).folder, '_tp_')
                 tp_case = 1;
                 tp_num = str2num(temp{end-1});
-            end
+            end            
             if tp_case
-                out_dir = sprintf('tp_%02i_%s', tp_num, mod_case);
+                if ~bc_case
+                    out_dir = sprintf('tp_%02i_%s', tp_num, mod_case);
+                else
+                    out_dir = sprintf('tp_%02i_%s_bc', tp_num, mod_case);
+                end
             else
                 out_dir = sprintf('all_%s', mod_case);
             end
             mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
             copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
-
-            tp_nam = sprintf('tp_%02i', tp_num);
-            mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
-            mainStruct.(nam).proc.(mod_case).(tp_nam).path = [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name];
-            mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, tp_nam);
-            mainStruct.(nam).proc_check.tp_spectra_res.(mod_case) = tp_num;
+            copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
+            
+            if tp_case
+                if ~bc_case
+                    tp_nam = sprintf('tp_%02i', tp_num);
+                else
+                    tp_nam = sprintf('tp_%02i_bc', tp_num);
+                end
+                mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
+                mainStruct.(nam).proc.(mod_case).(tp_nam).path = [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name];
+                mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, tp_nam);
+                mainStruct.(nam).proc_check.tp_spectra_res.(mod_case) = tp_num;
+            else
+                mainStruct.(nam).proc.(mod_case).all.exist = 1;
+                mainStruct.(nam).proc.(mod_case).all.path = [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name];
+                mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, 'all');
+%                 mainStruct.(nam).proc_check.tp_spectra_res.(mod_case) = tp_num;
+            end
         end
-        mainStruct = hp_make('save', mainStruct);
+         mainStruct = hp_make('save', mainStruct);
 
     case 'processLCTable'
         %use as hp_make('processLCTable',mainStruct, id, condition, tp_number)
@@ -687,6 +833,24 @@ switch action
         mainStruct.(nam).proc.(condition).(tp_nam).NAAerr = resTab.SDpct(20);
         mainStruct.(nam).proc.(condition).(tp_nam).Crerr = resTab.SDpct(21);
         mainStruct.(nam).proc.(condition).(tp_nam).Glxerr = resTab.SDpct(22);
+%% MRS quality control procedures
+% draw MR-spectra
+    case 'coord_drawSpectra'
+        %use as hp_make('coord_drawSpectra', id, condition, tp_number)
+        mainStruct = hp_make('load');
+        condition = varargin{2};
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+
+        if mainStruct.(nam).proc_check.all.(condition)>0
+            coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\all_' condition '\coord'];
+            sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
+            fit_figure = io_readlcmcoord_getBackground(coordPath,'fit');
+            plot(sp_figure.ppm, [sp_figure.specs, fit_figure.specs]);
+            set(gca,'Xdir','reverse');
+            exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' nam '_' condition '.png'], 'BackgroundColor', 'white');
+        end
+
 
     case 'spVoxelPlacement'
         % use as hp_make('spVoxelPlacement', id)
@@ -796,6 +960,188 @@ switch action
             end
         end
         varargout{1} = resTable;
+
+        %concentration quantification
+        %formula according DOI: 10.1007/s10334-012-0305-z
+        %formula (2) p.333
+%         IntRatio = I*N1*1*1/(2*35880*0.7);
+%         CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
+%             (met_frac_GM*met_R_GM+frac_WM*R_WM);
+
+
+    case 'getResSP_ALL'
+        %use as [~, resTable] = hp_make('getResSP_ALL', condition, met)
+        %gives results of the spectroscopy experiment as a matrix
+        %available metabolites (met) - 'Cr', 'NAA', 'Glx', 'LW'
+        mainStruct = hp_make('load');
+
+%         condition = varargin{1};
+%         met = varargin{2};
+
+%         if contains(met, 'LW')
+%             resTable.LW.Cr = zeros([mainStruct.meta.subNumbers, 6]);
+%             resTable.LW.NAA = zeros([mainStruct.meta.subNumbers, 6]);
+%         else
+%             resTable.(met).Conc = zeros([mainStruct.meta.subNumbers, 6]);
+%             resTable.(met).ConcCr = zeros([mainStruct.meta.subNumbers, 6]);
+%         end
+        
+        condition = {'sham' , 'act'};
+        for id=1:mainStruct.meta.subNumbers
+            for ii=1:2
+                nam = sprintf('sub_%02i', id);
+                if mainStruct.(nam).proc_check.all.(condition{ii})>0
+                    resTable.met.NAA(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.NAA;
+                    resTable.met.Cr(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.Cr;
+                    resTable.met.Glx(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.Glx;
+                end
+            end
+        end
+        varargout{1} = resTable;
+
+    case 'importResultsData'
+        %use as [~, resTable] = hp_make('importResultsData', ResCase, add_flag, add_parameter, mainStruct)
+        %add_parameter defines what value get from the data structure
+        if length(varargin)<4
+            mainStruct = hp_make('load');
+        else
+            mainStruct = varargin{4};
+        end
+        
+        ResCase = varargin{1};
+        additional_flag = varargin{2};
+        add_parameter = varargin{3};
+        switch ResCase
+            case '_tp'
+                %additional_flag - is for normilising to Cr data values
+                out_nams = {}; k =1;
+                for id = 1:mainStruct.meta.subNumbers
+                    nam = sprintf('sub_%02i', id);
+                    if mainStruct.(nam).proc_check.bold_correction>0
+                        out_nams{k} = [nam '_sh']; 
+                        for ii = 1:6
+                            tp_nam = sprintf('tp_%02i', ii);
+                            temp0(k, ii) = mainStruct.(nam).proc.sham.(tp_nam).(add_parameter);
+                            temp1(k, ii) = mainStruct.(nam).proc.act.(tp_nam).(add_parameter);
+                            temp2(k, ii) = mainStruct.(nam).proc.act.([tp_nam '_bc']).(add_parameter);
+                            if additional_flag>0
+                                temp0(k, ii) = mainStruct.(nam).proc.sham.(tp_nam).(add_parameter)/mainStruct.(nam).proc.sham.(tp_nam).Cr;
+                                temp1(k, ii) = mainStruct.(nam).proc.act.(tp_nam).(add_parameter)/mainStruct.(nam).proc.act.(tp_nam).Cr;
+                                temp2(k, ii) = mainStruct.(nam).proc.act.([tp_nam '_bc']).(add_parameter)/mainStruct.(nam).proc.act.([tp_nam '_bc']).Cr;
+                            end
+                        end
+                        k = k + 1;
+%                         results_table = table([], zeros(mainStruct.meta.subNumbers*2, 6),'RowNames',{'name', ...
+%                     'tp_01', 'tp_02', 'tp_03', 'tp_04', 'tp_05', 'tp_06'});
+                    end
+                end
+                for i=1:length(out_nams)
+                    nam = sprintf('sub_%02i', i);
+                    out_nams{i+13} = [nam '_act'];
+                    out_nams{i+26} = [nam '_bc'];
+                end
+                results_table = array2table([temp0; temp1; temp2], 'VariableNames', {'tp_01', 'tp_02', 'tp_03', 'tp_04', 'tp_05', 'tp_06'}, 'RowNames', out_nams);
+                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '.csv']); 
+                varargout{1} = results_table;
+            case 'all'
+                out_nams = {}; k = 1;
+                for id = 1:mainStruct.meta.subNumbers
+                    nam = sprintf('sub_%02i', id);
+                    out_nams{id} = nam;
+                    if mainStruct.(nam).proc_check.all.sham<1
+                        continue;
+                    end
+                    if contains(add_parameter, 'all')
+                        fildNames = fieldnames(mainStruct.(nam).proc.sham.all);
+                        for ii = 3:length(fildNames)
+                            temp0(id, ii-2) = mainStruct.(nam).proc.sham.all.(fildNames{ii});
+%                             temp0(id, ii-2) = mainStruct.(nam).proc.act.all.(fildNames{ii});
+                        end
+                    else
+                        temp0(id, 1) = mainStruct.(nam).proc.sham.all.(add_parameter);
+                        temp1(id, 1) = mainStruct.(nam).proc.act.all.(add_parameter);
+                    end
+
+                    %k = k+1;
+                end
+                if contains(add_parameter, 'all')
+                    results_table = array2table([temp0], 'VariableNames', {'NAA', 'Cr', 'Glx', 'NAAerr', 'Crerr', 'Glxerr', 'LWCr', 'LWNAA' }, 'RowNames', out_nams');
+                else
+                    results_table = array2table([temp0, temp1], 'VariableNames', {'rest', 'act'}, 'RowNames', out_nams');
+                end
+                %remove rows without data
+                remove_rows = [];
+                for i=1:mainStruct.meta.subNumbers
+                    if results_table.NAA(i)==0
+                         remove_rows = [remove_rows i];
+                    end
+                end
+                results_table(remove_rows,:) = [];
+                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '_all_sham.csv']); 
+                varargout{1} = results_table;
+
+
+        end
+
+                
+    case 'BOLD_correction'
+        %here using NAA nad Cr signal parameters BOLD change detected
+        %(should be narrowing of the lines) and specifically corrected
+        %(using FID-A line broadening)
+        %use as [] = hp_make('BOLD_correction', id)
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+
+        %Find linewidths
+        for j= 1:6
+            tp_nam = sprintf('tp_%02i', j);
+            LW_met(j, 1) = mainStruct.(nam).proc.act.(tp_nam).LWCr;
+            LW_NAA(j, 1) = mainStruct.(nam).proc.act.(tp_nam).LWNAA;
+        end
+        %find difference between TP LW and mean LW
+        LW_Cr_n = LW_met-mean(LW_met); LW_NAA_n = LW_NAA-mean(LW_NAA);
+        %make correction according to the difference
+        %         for i=1:mainStruct.meta.subNumbers
+        nam = sprintf('sub_%02i', id);
+        if mainStruct.(nam).data_check.sp>0
+            txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
+            fprintf(txt_protocol, '------ \n bold correction Cr signal: case - %s \n', nam);
+            for ii=1:6
+                tp_nam = sprintf('tp_%02i', ii);
+                sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' tp_nam '_act.SDAT'];
+                sp = io_loadspec_sdat(sp_name, 1);
+                sp = op_filter(sp, -LW_Cr_n(ii, 1));
+                new_sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' tp_nam '_act_bc.SDAT'];
+                mrs_writeSDAT(new_sp_name, sp.fids);
+                copyfile([sp_name(1:end-4) 'SPAR'], [new_sp_name(1:end-4) 'SPAR']);
+                
+                %write LW-changes into the protocol of mrs processing
+                fprintf(txt_protocol, '%s \n', datetime("today"));
+                fprintf(txt_protocol, 'linewidth change for tp_%02i: %f \n', ii, -LW_Cr_n(ii, 1));
+                
+                
+
+            end
+            % check new linewidth
+            fclose(txt_protocol);
+            hp_make('LinewidthAssessment', id, 'act', 1, 1);
+            mainStruct = hp_make('load');
+            for j= 1:6
+                tp_nam = sprintf('tp_%02i', j);
+                LW_met_bc(j, 1) = mainStruct.(nam).proc.act.(tp_nam).LWCr_bc;
+                LW_NAA_bc(j, 1) = mainStruct.(nam).proc.act.(tp_nam).LWNAA_bc;
+            end
+            plot(1:6, [LW_met, LW_met_bc]);
+            mainStruct.(nam).proc_check.bold_correction = 1;
+            mainStruct = hp_make('save', mainStruct);
+            
+        end
+                   
+
+
+
+
                 
         case 'getResBOLD'
         %use as [~, resTable] = hp_make('getResBOLD')
@@ -1049,7 +1395,72 @@ switch action
 
 
         %% Some not very important features or minor experiments (consider to remove it)
+    case 'GLM_estimation'
+        %Here in GLM design start of the stimulus presentation is engaged
+        %with button response
+        hp_default;
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+        mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived\res_exp']);
+        nrun = 1; % enter the number of runs here
+        jobfile = {[mainStruct.meta.folder '\_meta\stats_empty_job.m']};
+        jobs = repmat(jobfile, 1, nrun);
+        inputs = cell(5, nrun);
+        for crun = 1:nrun
+            inputs{1, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\res_exp']}; % fMRI model specification: Directory - cfg_files
+            fmri_img = spm_vol([mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' nam '_func.nii']); NSA = length(fmri_img);
+            for i=1:NSA
+                func_data(i, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' nam '_func.nii,' num2str(i)]};
+            end
+            inputs{2, crun} = func_data; % fMRI model specification: Scans - cfg_files
+            if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
+                startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+                regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+                if length(mainStruct.(nam).proc.react_time)<length(regressorList)
+                    delta = length(regressorList)-length(mainStruct.(nam).proc.react_time);
+                    mainStruct.(nam).proc.react_time(length(mainStruct.(nam).proc.react_time)+1:length(mainStruct.(nam).proc.react_time)+delta) = mean(mainStruct.(nam).proc.react_time);
+                    regressorList(:, 1) = startTime - startTime(1, 1) - (12 - mainStruct.(nam).proc.dummy_time)+mainStruct.(nam).proc.react_time;
+                else
+                    regressorList(:, 1) = startTime - startTime(1, 1) - (12 - mainStruct.(nam).proc.dummy_time)+mainStruct.(nam).proc.react_time;
+                end
+            end
+            inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
+            inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
+            inputs{5, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\rp_a' nam '_func.txt']}; % fMRI model specification: Multiple regressors - cfg_files
+        end
+        spm('defaults', 'FMRI');
+        spm_jobman('run', jobs, inputs{:});
+
+    case 'BOLD effect estimate'
+        %Here BOLD-effect using MRS daa was estimated.
+        % these five lines is dedicated to obtain linewidth and normilise
+        % it as: (X-mean(X))/std(X); (mean and std by rows)
+        cases = {'sham', 'act'};
+        mets = {'NAA', 'Cr'};
+        for i=1:2
+            [~, resTable] = hp_make('getResSP', cases{i}, 'LW');
+            for ii=1:2
+                LW_met = resTable.LW.(mets{ii});
+                LW_met = LW_met(5:18, :);
+%                 LW_met(7, :) = [];
+                LW_met_norm = (LW_met-repmat(mean(LW_met, 2), 1, 6))./repmat(std(LW_met, [], 2), 1, 6);
+                LW_case_met{i, ii} = LW_met_norm;
+            end
+        end
         
+        %This is theroretically divided BOLD (got by standard-hrf convolved with
+        %stimulus funcion)
+%         subjs = [5:10, 12:18];
+        subjs = [5:18];
+        for i=1:13
+            nam = sprintf('sub_%02i', subjs(i));
+            hrf_mrs(:, i) = mainStruct.(nam).proc.hfr_mrs;
+        end
+        hrf_mrs = hrf_mrs';
+
+        varargout{1} = LW_case_met;
+
+
     case 'expDynamicsSNR'
         mainStruct = hp_make('load');
         pathToSave = 'G:\_other\fMRS-heatPain\_unsorted\dyn60\';
@@ -1105,6 +1516,83 @@ switch action
 
         [r, p] = corr(HRF, resp_norm);
         [r2, p2] = corr(HRF, resp_norm2);
+
+    case 'VASassessment'
+        % [~, VAStable] = hp_make('VASassessment')
+        %Here VAS estimates are assessed from pretest files and using
+        %tempereature_approximation VAS estimate was obtained
+        mainStruct = hp_make('load');
+
+        for i=1:mainStruct.meta.subNumbers
+            nam = sprintf('sub_%02i', i);
+            %already done
+%             hp_make('new_field', 'mainStruct.(nam).proc.estimate', 7);
+%             hp_make('new_field', 'mainStruct.(nam).proc_check.estimates', 0);
+%             hp_make('new_field', 'mainStruct.(nam).proc.VAS', 7);
+            switch i
+                case 5
+                    mainStruct.(nam).proc.temp = [39 42 45 42 39 43 37 44 42];
+                    mainStruct.(nam).proc.estimate = [5 6 8.5 5 3 7 2 8 8];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 43;
+                case 6
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47 48];
+                    mainStruct.(nam).proc.estimate = [2 5 6 6 7 8.5];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 47;
+                case 7
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47 48 42 48 50 49];
+                    mainStruct.(nam).proc.estimate = [1 2 3 3 4 6 1 6 8 8];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 48;
+                case 8
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47 48 41 39 47 46 49 50];
+                    mainStruct.(nam).proc.estimate = [1, 3, 3 4 5 6 1 0 4 4 7 8];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 49;
+                case 10
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47];
+                    mainStruct.(nam).proc.estimate = [2 4 7 8 9];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 46;
+                case 12
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47];
+                    mainStruct.(nam).proc.estimate = [5 6 7 7 8];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 48;
+                case 14
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47 48 41 45 49 48];
+                    mainStruct.(nam).proc.estimate = [3 4 4 5 5 6 3 4 6 7.5];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 48;
+                case 15
+                    mainStruct.(nam).proc.temp = [37 39 41 43 45 47];
+                    mainStruct.(nam).proc.estimate = [0 1 3 4 5 7];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 47;
+                case 16
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47 48 41 43 47 45 49 50];
+                    mainStruct.(nam).proc.estimate = [1 2 3 4 4 5 2 3 4 4 5 6];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 50;
+                case 17
+                    mainStruct.(nam).proc.temp = [39 42 45 46 47];
+                    mainStruct.(nam).proc.estimate = [3 5 6 7 8];
+                    mainStruct.(nam).proc_check.estimates = 1;
+                    mainStruct.(nam).proc.selected_temp = 47;
+
+                end
+        end
+        for i=1:mainStruct.meta.subNumbers
+            nam = sprintf('sub_%02i', i);
+            if mainStruct.(nam).proc_check.estimates
+                mainStruct.(nam).proc.VAS = temperature_approximation(mainStruct.(nam).proc.temp, mainStruct.(nam).proc.estimate, mainStruct.(nam).proc.selected_temp);
+                VAStable(i).name = nam;
+                VAStable(i).value = mainStruct.(nam).proc.VAS;
+            end
+        end
+        varargout{1} = VAStable;
+        hp_make('save', mainStruct);
 
     case 'BOLDextraction'
         %Here BOLD from three regions exctracted data was resampled
@@ -1201,19 +1689,39 @@ switch action
         end
         hp_make('save', mainStruct);
 
+    case 'BugFix_LWbc_toBC'
+        %Made 18-03-2024 AYakovlev
+        %transfer LC values to different place in the structure
+        mainStruct = hp_make('load');
+        
+        for i=1:mainStruct.meta.subNumbers
+            nam = sprintf('sub_%02i', i);
+            if mainStruct.(nam).proc_check.bold_correction
+            for j=1:6
+                tp_nam = sprintf('tp_%02i', j);
+                mainStruct.(nam).proc.act.([tp_nam '_bc']).LWCr = mainStruct.(nam).proc.act.(tp_nam).LWCr_bc;
+                mainStruct.(nam).proc.act.([tp_nam '_bc']).LWNAA = mainStruct.(nam).proc.act.(tp_nam).LWNAA_bc;
+                mainStruct.(nam).proc.act.(tp_nam).LWCr_bc = [];
+                mainStruct.(nam).proc.act.(tp_nam).LWNAA_bc = [];
+            end
+            end
+        end
+        hp_make('save', mainStruct);
 
 end
 end
 
 function startTime = getTTLtime(xlsfile)
 % stimulus times ONLY for MRS modality
+    k=1;
     eventsTable = readtable(xlsfile);
     if iscell(eventsTable.Events)
         TTL = strfind(eventsTable.Events, 'TTL');
         for i=1:length(TTL)
             if ~isempty(TTL{i})
-                startTime = eventsTable.Timestamp_msec_(i)/1000;
-                break
+                startTime(k) = eventsTable.Timestamp_msec_(i)/1000;
+                k=k+1;
+%                 break
             end
         end
     else
@@ -1384,6 +1892,26 @@ function callfMRIProcessing(inputs, slice_case, segment)
     matlabbatch{k}.spm.spatial.smooth.prefix = 's';
     
     spm_jobman('run',matlabbatch);
+end
+
+function alignImages(input_data)
+matlabbatch{1}.spm.spatial.realign.estimate.data = {input_data};
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.quality = 0.9;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.sep = 4;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.fwhm = 5;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.rtm = 1;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.interp = 2;
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.wrap = [0 0 0];
+matlabbatch{1}.spm.spatial.realign.estimate.eoptions.weight = '';
+
+spm_jobman('run',matlabbatch);
+end
+
+function AbsoluteConcQunatification(LCmodelConc, met_pars)
+    
+    IntRatio = LCmodelConc*N1*1*1/(2*35880*0.7);
+    CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
+        (met_frac_GM*met_R_GM+frac_WM*R_WM);
 end
 
 function [X] = makeHRF(onsets)
