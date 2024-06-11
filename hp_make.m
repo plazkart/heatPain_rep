@@ -847,17 +847,93 @@ switch action
         Q6_time_series_task(fmri_file, rp_file, SPM_file);
         saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\Q6.jpg'],'jpg');
 
+    case 'b1/b8'
+
+%         hp_make('b1/b8',8)
+
+        id = varargin{1};
+        mainStruct = hp_make('load');
+        nam = sprintf('sub_%02i', id);
+
+        b1_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0001.nii']);
+        b8_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0008.nii']);
+        InsulaL_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_left_thr20.nii']);
+        InsulaR_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_right_thr20.nii']);
+        SMA_mask_file = ([mainStruct.meta.folder '\Atlases\rSMA_thr20.nii']);
+
+        HeaderInfoB1 = spm_vol(b1_file);
+        %disp(HeaderInfoB1);
+        HeaderInfoB8 = spm_vol(b8_file);
+        HeaderInfoIL = spm_vol(InsulaL_mask_file);
+        HeaderInfoIR = spm_vol(InsulaR_mask_file);
+        HeaderInfoSMA = spm_vol(SMA_mask_file);
+        %disp(HeaderInfoSMA);
+        
+        if HeaderInfoB1.dim ~= HeaderInfoIL.dim
+            error('The dimensions of main file and mask_files are NOT equal')
+        end
+
+        DataB1 = spm_read_vols(HeaderInfoB1);
+        DataB8 = spm_read_vols(HeaderInfoB8);
+        DataIL = spm_read_vols(HeaderInfoIL);
+        DataIR = spm_read_vols(HeaderInfoIR);
+        DataSMA = spm_read_vols(HeaderInfoSMA);
+
+        %Data_B1_B8 = DataB1./DataB8;
+        Data_B1_B8 = zeros(size(DataB1));
+        S_IL = 0;
+        N_IL = 0;
+        S_IR = 0;
+        N_IR = 0;
+        S_SMA = 0;
+        N_SMA = 0;
+        
+        for i = 1:HeaderInfoB1.dim(1)
+            for j = 1:HeaderInfoB1.dim(2)
+                for k = 1:HeaderInfoB1.dim(3)
+                    if DataIL(i,j,k)>0 & ~(isnan(DataB1(i,j,k))) & ~(isnan(DataB8(i,j,k)))
+                        Data_B1_B8(i,j,k) = DataB1(i,j,k)/DataB8(i,j,k);
+                        N_IL = N_IL+1;
+                        S_IL = S_IL+Data_B1_B8(i,j,k);
+                    end
+                    if DataIR(i,j,k)>0 & ~(isnan(DataB1(i,j,k))) & ~(isnan(DataB8(i,j,k)))
+                        Data_B1_B8(i,j,k) = DataB1(i,j,k)/DataB8(i,j,k);
+                        N_IR = N_IR+1;
+                        S_IR = S_IR+Data_B1_B8(i,j,k);
+                    end
+                    if DataSMA(i,j,k)>0 & ~(isnan(DataB1(i,j,k))) & ~(isnan(DataB8(i,j,k)))
+                        Data_B1_B8(i,j,k) = DataB1(i,j,k)/DataB8(i,j,k);
+                        N_SMA = N_SMA+1;
+                        S_SMA = S_SMA+Data_B1_B8(i,j,k);
+                    end
+                end
+            end
+        end
+        MeanIL = S_IL/N_IL;
+        MeanIR = S_IR/N_IR;
+        MeanSMA = S_SMA/N_SMA;
+        %fprintf('IL: %6.4f, IR: %6.4f, SMA:%6.4f,\n', MeanIL, MeanIR, MeanSMA);
+        fprintf('%6.4f\t %6.4f\t %6.4f\n', MeanIL, MeanIR, MeanSMA);
+
+%     case 'all_b1/b8'
+%         for i = 3:25
+%             hp_make('b1/b8',i)
+%         end
+
     case 'MaskMeanSignal'
+
+%         hp_make('MaskMeanSignal',8)
+
         % Insula (R ans L) and supplementary motor area (SMA)
 
         id = varargin{1};
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
-        wr_func_file = ([mainStruct.meta.folder '\FMRS\' nam '\derived\wr' nam '_func.nii']);
-        InsulaL_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_left_thr20.nii']);
-        InsulaR_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_right_thr20.nii']);
-        SMA_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rSMA_thr20.nii']);
+        wr_func_file = ([mainStruct.meta.folder '\' nam '\derived\wr' nam '_func.nii']);
+        InsulaL_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_left_thr20.nii']);
+        InsulaR_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_right_thr20.nii']);
+        SMA_mask_file = ([mainStruct.meta.folder '\Atlases\rSMA_thr20.nii']);
 
         HeaderInfo0 = spm_vol(wr_func_file);
         disp(HeaderInfo0(1));
@@ -909,12 +985,66 @@ switch action
             end
         end
         MeanIL = S_IL/N_IL;
-        writematrix(MeanIL,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanIL.txt'],"Delimiter",'tab');
+        writematrix(MeanIL,[mainStruct.meta.folder '\' nam '\derived\MeanIL.txt'],"Delimiter",'tab');
         MeanIR = S_IR/N_IR;
-        writematrix(MeanIR,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanIR.txt'],"Delimiter",'tab');
+        writematrix(MeanIR,[mainStruct.meta.folder '\' nam '\derived\MeanIR.txt'],"Delimiter",'tab');
         MeanSMA = S_SMA/N_SMA;
-        writematrix(MeanSMA,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanSMA.txt'],"Delimiter",'tab');
+        writematrix(MeanSMA,[mainStruct.meta.folder '\' nam '\derived\MeanSMA.txt'],"Delimiter",'tab');
 
+    case 'HRF_GLMsingle'
+        % to activate the case -    hp_make('HRF_GLMsingle',12)
+        % git clone --recurse-submodules https://github.com/cvnlab/GLMsingle.git          
+        id = varargin{1};
+        mainStruct = hp_make('load');
+        nam = sprintf('sub_%02i', id);
+
+        timingInfo = heatPain_makeRegressor([mainStruct.meta.folder '\' nam '\func\' nam '_bold.xlsx']);
+        startTime = getTTLtime([mainStruct.meta.folder '\' nam '\func\' nam '_bold.xlsx']);
+        timingInfo(:, 1) = timingInfo(:, 1) - startTime - (12 - mainStruct.(nam).proc.dummy_time);
+
+        %timingInfo(:,1) %stimulus start time
+        %timingInfo(:,2) %stimulus duration
+        stimdur = mean(timingInfo(:,2));
+
+        wr_func_file = ([mainStruct.meta.folder '\' nam '\derived\r' nam '_func.nii']);
+        HeaderInfo0 = spm_vol(wr_func_file);
+        data0 = spm_read_vols(HeaderInfo0);
+        tr = HeaderInfo0(1).private.timing.tspace;
+        
+        design1 = round(timingInfo(:,1));
+        design_tr1 = fix(design1/tr)+1;
+        design_tr = design_tr1(design_tr1 <= size(data0, 4));
+        S = sparse(size(data0, 4),2);
+        for i = design_tr
+            S(i,1) = 1;   
+        end
+
+%         for i = design_tr
+%             if i <= size(data, 4)
+%                 S(i,1) = 1;
+%             end
+%         end
+
+        design = cell(1);
+        design{1,1} = S;
+        %disp(design{1,1});
+        data = cell(1);
+        data{1,1} = data0;
+
+        if ~exist([mainStruct.meta.folder '\' nam '\GLMsingle'])
+            mkdir ([mainStruct.meta.folder '\' nam '\GLMsingle'])
+        end
+        outputdir = ([mainStruct.meta.folder '\' nam '\GLMsingle']);
+
+        %opt = struct('wantmemoryoutputs',[0 1 0 1]); % by default 0001
+        opt.wantglmdenoise = 0;     % by default 1
+        opt.wantfracridge = 0;      % by default 1
+        opt.wantmemoryoutputs = [0 1 0 0]; % by default 0001
+        opt.wantfileoutputs = [1 1 0 0]; %  by default 1111
+     
+
+        [results] = GLMestimatesingletrial(design,data,stimdur,tr,outputdir,opt);
+        
 
 
 
