@@ -106,8 +106,10 @@ v = spm_vol([fmri_file ',' num2str(imagei)]);
     yticklabels({'G raw','HM 1','HM 2','HM 3','HM 4','HM 5','HM 6','Task','Control'})
     colorbar
     title('Correlation');
-    mat_mask = [zeros(7,7) ones(7,1);ones(1,7) zeros(1,1)];
-    [x,y] = find((corr_raw>0.3).*mat_mask);
+    %mat_mask1 = [zeros(7,7) ones(7,1);ones(1,7) zeros(1,1)];
+    mat_mask1 = [zeros(1,1) ones(1,7);zeros(7,7) zeros(7,1)];
+    disp(mat_mask1);
+    [x,y] = find((abs(corr_raw)>0.7).*mat_mask1);
     hold on; scatter(x,y,[],'r','filled')
     
     subplot(2,3,6)
@@ -117,8 +119,9 @@ v = spm_vol([fmri_file ',' num2str(imagei)]);
     yticklabels({'V raw','FD T','FD R','d(Task)','d(Control)'})
     colorbar
     title('Correlation');
-    mat_mask = [0 1 1 1 ;0 0 1 1 ;0 0 0 1 ;0 0 0 0 ];
-    [x,y] = find((corr_dt>0.3).*mat_mask);
+    mat_mask2 = [0 1 1 1 ;0 0 1 1 ;0 0 0 1 ;0 0 0 0 ];
+    disp(mat_mask2);
+    [x,y] = find((abs(corr_dt)>0.7).*mat_mask2);
     hold on; scatter(x,y,[],'r','filled')
 
 %     exportgraphics(gcf,['C:\Users\synge\Documents\GitHub\Preprocessing_and_QC\QC_images\Q6_time_series_task\' subjfolder(subji).name '.jpg']);
