@@ -81,6 +81,7 @@ switch action
         mainStruct.(nam).proc_check.all.act = 0;
         mainStruct.(nam).proc_check.all.sham = 0;
         mainStruct.(nam).proc_check.all.mrs_QA = 1;
+        mainStruct.(nam).proc_check.sp_segmented = 0;
         
         mainStruct.meta.subNumbers = mainStruct.meta.subNumbers+1;
 
@@ -853,24 +854,28 @@ switch action
 
 
     case 'spVoxelPlacement'
-        % use as hp_make('spVoxelPlacement', id)
+        % use as hp_make('spVoxelPlacement', id, condition)
         %makes voxel mask in MNI-space
         mainStruct = hp_make('load');
         id = varargin{1};
+        condition = varargin{2};
         nam = sprintf('sub_%02i', id);
 
-        MRS_struct = CoRegStandAlone({[mainStruct.meta.folder mainStruct.(nam).folder '\sp\' nam '_sham.SDAT']},...
+        MRS_struct = CoRegStandAlone({[mainStruct.meta.folder mainStruct.(nam).folder '\sp\' nam '_' condition '.SDAT']},...
             {[mainStruct.meta.folder mainStruct.(nam).folder '\anat\' nam '_anat.nii']});
         mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived']);
         copyfile(MRS_struct.mask.vox1.outfile{1}, [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii']);
         delete(MRS_struct.mask.vox1.outfile{1});
-        mainStruct.(nam).proc.sp_mask.path = [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii'];
-        mainStruct.(nam).proc.sp_mask.GM = MRS_struct.out.vox1.tissue.fGM;
-        mainStruct.(nam).proc.sp_mask.WM = MRS_struct.out.vox1.tissue.fWM;
-        mainStruct.(nam).proc.sp_mask.CSF = MRS_struct.out.vox1.tissue.fCSF;
+        
+        mainStruct.(nam).proc.(condition).all.path = [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii'];
+        mainStruct.(nam).proc.(condition).all.GM = MRS_struct.out.vox1.tissue.fGM;
+        mainStruct.(nam).proc.(condition).all.WM = MRS_struct.out.vox1.tissue.fWM;
+        mainStruct.(nam).proc.(condition).all.CSF = MRS_struct.out.vox1.tissue.fCSF;
+
+        mainStruct.(nam).proc_check.sp_segmented = 1;
         mainStruct = hp_make('save', mainStruct);
         %translate to MNI
-        callNormilise(mainStruct.(nam).proc.sp_mask.path,...
+        callNormilise(mainStruct.(nam).proc.(condition).all.path,...
             [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
         
     case 'count_fmriMetrics'
@@ -1203,9 +1208,9 @@ switch action
 
         b1_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0001.nii']);
         b8_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0008.nii']);
-        InsulaL_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_left_thr20.nii']);
-        InsulaR_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_right_thr20.nii']);
-        SMA_mask_file = ([mainStruct.meta.folder '\Atlases\rSMA_thr20.nii']);
+        InsulaL_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_left_thr20.nii']);
+        InsulaR_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_right_thr20.nii']);
+        SMA_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rSMA_thr20.nii']);
 
         HeaderInfoB1 = spm_vol(b1_file);
         %disp(HeaderInfoB1);
@@ -1277,9 +1282,9 @@ switch action
         nam = sprintf('sub_%02i', id);
 
         wr_func_file = ([mainStruct.meta.folder '\' nam '\derived\wr' nam '_func.nii']);
-        InsulaL_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_left_thr20.nii']);
-        InsulaR_mask_file = ([mainStruct.meta.folder '\Atlases\rInsula_right_thr20.nii']);
-        SMA_mask_file = ([mainStruct.meta.folder '\Atlases\rSMA_thr20.nii']);
+        InsulaL_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_left_thr20.nii']);
+        InsulaR_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_right_thr20.nii']);
+        SMA_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rSMA_thr20.nii']);
 
         HeaderInfo0 = spm_vol(wr_func_file);
         disp(HeaderInfo0(1));
@@ -1391,6 +1396,22 @@ switch action
 
         [results] = GLMestimatesingletrial(design,data,stimdur,tr,outputdir,opt);
         
+    case '2lvlanalysis'
+   % hp_make('2lvlanalysis', temp, hand);
+   mainStruct = hp_make('load');
+   temp = varargin{1};
+   hand = varargin{2};
+
+   for i=3:29
+       nam = sprintf('sub_%02i', i);
+       input{1, 1}{i-2, 1} = [mainStruct.meta.folder '\' nam '\derived\res\con_0001.nii'];
+   end
+   input{1, 2} = temp;
+   input{1, 3} = hand;
+
+   secondLvl(input);
+   
+
 
 
 
@@ -1932,4 +1953,52 @@ function [X] = makeHRF(onsets)
         X = X((0:(145 - 1))*SPM1.xBF.T + SPM1.xBF.T0 + 32,:);
     end
     X = X(:, 1);
+end
+
+function secondLvl(inputs)
+matlabbatch{1}.spm.stats.factorial_design.dir = {'E:\Alex\fMRS-heatPain\_meta\2lvl'};
+matlabbatch{1}.spm.stats.factorial_design.des.t1.scans = inputs{1, 1};
+matlabbatch{1}.spm.stats.factorial_design.cov(1).c = inputs{1, 2};
+matlabbatch{1}.spm.stats.factorial_design.cov(1).cname = 'temperature';
+matlabbatch{1}.spm.stats.factorial_design.cov(1).iCFI = 1;
+matlabbatch{1}.spm.stats.factorial_design.cov(1).iCC = 1;
+matlabbatch{1}.spm.stats.factorial_design.cov(2).c = inputs{1, 3};
+matlabbatch{1}.spm.stats.factorial_design.cov(2).cname = 'hands';
+matlabbatch{1}.spm.stats.factorial_design.cov(2).iCFI = 1;
+matlabbatch{1}.spm.stats.factorial_design.cov(2).iCC = 1;
+matlabbatch{1}.spm.stats.factorial_design.multi_cov = struct('files', {}, 'iCFI', {}, 'iCC', {});
+matlabbatch{1}.spm.stats.factorial_design.masking.tm.tm_none = 1;
+matlabbatch{1}.spm.stats.factorial_design.masking.im = 1;
+matlabbatch{1}.spm.stats.factorial_design.masking.em = {''};
+matlabbatch{1}.spm.stats.factorial_design.globalc.g_omit = 1;
+matlabbatch{1}.spm.stats.factorial_design.globalm.gmsca.gmsca_no = 1;
+matlabbatch{1}.spm.stats.factorial_design.globalm.glonorm = 1;
+
+matlabbatch{1}.spm.stats.factorial_design.multi_cov = struct('files', {}, 'iCFI', {}, 'iCC', {});
+matlabbatch{1}.spm.stats.factorial_design.masking.tm.tm_none = 1;
+matlabbatch{1}.spm.stats.factorial_design.masking.im = 1;
+matlabbatch{1}.spm.stats.factorial_design.masking.em = {''};
+matlabbatch{1}.spm.stats.factorial_design.globalc.g_omit = 1;
+matlabbatch{1}.spm.stats.factorial_design.globalm.gmsca.gmsca_no = 1;
+matlabbatch{1}.spm.stats.factorial_design.globalm.glonorm = 1;
+matlabbatch{2}.spm.stats.fmri_est.spmmat(1) = cfg_dep('Factorial design specification: SPM.mat File', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
+matlabbatch{2}.spm.stats.fmri_est.write_residuals = 0;
+matlabbatch{2}.spm.stats.fmri_est.method.Classical = 1;
+matlabbatch{3}.spm.stats.con.spmmat(1) = cfg_dep('Model estimation: SPM.mat File', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
+matlabbatch{3}.spm.stats.con.consess{1}.tcon.name = '1';
+matlabbatch{3}.spm.stats.con.consess{1}.tcon.weights = 1;
+matlabbatch{3}.spm.stats.con.consess{1}.tcon.sessrep = 'none';
+matlabbatch{3}.spm.stats.con.delete = 0;
+matlabbatch{4}.spm.stats.results.spmmat(1) = cfg_dep('Contrast Manager: SPM.mat File', substruct('.','val', '{}',{3}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
+matlabbatch{4}.spm.stats.results.conspec.titlestr = '';
+matlabbatch{4}.spm.stats.results.conspec.contrasts = 1;
+matlabbatch{4}.spm.stats.results.conspec.threshdesc = 'FWE';
+matlabbatch{4}.spm.stats.results.conspec.thresh = 0.05;
+matlabbatch{4}.spm.stats.results.conspec.extent = 0;
+matlabbatch{4}.spm.stats.results.conspec.conjunction = 1;
+matlabbatch{4}.spm.stats.results.conspec.mask.none = 1;
+matlabbatch{4}.spm.stats.results.units = 1;
+matlabbatch{4}.spm.stats.results.export{1}.ps = true;
+
+spm_jobman('run',matlabbatch);
 end
