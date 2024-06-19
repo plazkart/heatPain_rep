@@ -72,7 +72,6 @@ switch action
         mainStruct.(nam).proc_check.tp_matrix = 0;
         mainStruct.(nam).proc.dummy_time = 12;
         mainStruct.(nam).proc.slice_order = 'interleaved';
-        mainStruct.(nam).proc.displacentT2 = 0;
         
         mainStruct.(nam).proc_check.timepoints_spectra.sham = 0;
         mainStruct.(nam).proc_check.timepoints_spectra.act = 0;
@@ -967,8 +966,29 @@ switch action
         varargout{1} = resTable;
 
         %concentration quantification
+    case 'AbsoluteConc'
+        %use as [~, CONC ] = hp_make('AbsoluteConc', id,  condition, met)
         %formula according DOI: 10.1007/s10334-012-0305-z
         %formula (2) p.333
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        condition = varargin{2};
+        met = varargin{3};
+        nam = sprintf('sub_%02i', id);
+
+        LCmodelConc = mainStruct.(nam).proc.(condition).all.(met);
+        met_pars{1} = met;
+        met_pars{2} = mainStruct.(nam).proc.(condition).all.GM;
+        met_pars{3} = mainStruct.(nam).proc.(condition).all.WM;
+        met_pars{4} = mainStruct.(nam).proc.(condition).all.CSF;
+
+        CONC = AbsoluteConcQunatification(LCmodelConc, met_pars);
+        mainStruct.(nam).proc.(condition).all.([met '_AC']) = CONC;
+        mainStruct.(nam).proc_check.absConc = 1;
+        varargout{1}= CONC;
+
+        mainStruct = hp_make('save', mainStruct);
+
 %         IntRatio = I*N1*1*1/(2*35880*0.7);
 %         CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
 %             (met_frac_GM*met_R_GM+frac_WM*R_WM);
@@ -1198,6 +1218,7 @@ switch action
         Q6_time_series_task(fmri_file, rp_file, SPM_file);
         saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\Q6.jpg'],'jpg');
 
+<<<<<<< HEAD
     case 'b1/b8'
 
 %         hp_make('b1/b8',8)
@@ -1271,20 +1292,26 @@ switch action
 %             hp_make('b1/b8',i)
 %         end
 
+=======
+>>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
     case 'MaskMeanSignal'
-
-%         hp_make('MaskMeanSignal',8)
-
         % Insula (R ans L) and supplementary motor area (SMA)
 
         id = varargin{1};
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
+<<<<<<< HEAD
         wr_func_file = ([mainStruct.meta.folder '\' nam '\derived\wr' nam '_func.nii']);
         InsulaL_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_left_thr20.nii']);
         InsulaR_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_right_thr20.nii']);
         SMA_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rSMA_thr20.nii']);
+=======
+        wr_func_file = ([mainStruct.meta.folder '\FMRS\' nam '\derived\wr' nam '_func.nii']);
+        InsulaL_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_left_thr20.nii']);
+        InsulaR_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_right_thr20.nii']);
+        SMA_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rSMA_thr20.nii']);
+>>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
 
         HeaderInfo0 = spm_vol(wr_func_file);
         disp(HeaderInfo0(1));
@@ -1336,12 +1363,13 @@ switch action
             end
         end
         MeanIL = S_IL/N_IL;
-        writematrix(MeanIL,[mainStruct.meta.folder '\' nam '\derived\MeanIL.txt'],"Delimiter",'tab');
+        writematrix(MeanIL,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanIL.txt'],"Delimiter",'tab');
         MeanIR = S_IR/N_IR;
-        writematrix(MeanIR,[mainStruct.meta.folder '\' nam '\derived\MeanIR.txt'],"Delimiter",'tab');
+        writematrix(MeanIR,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanIR.txt'],"Delimiter",'tab');
         MeanSMA = S_SMA/N_SMA;
-        writematrix(MeanSMA,[mainStruct.meta.folder '\' nam '\derived\MeanSMA.txt'],"Delimiter",'tab');
+        writematrix(MeanSMA,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanSMA.txt'],"Delimiter",'tab');
 
+<<<<<<< HEAD
     case 'HRF_GLMsingle'
         % to activate the case -    hp_make('HRF_GLMsingle',12)
         % git clone --recurse-submodules https://github.com/cvnlab/GLMsingle.git          
@@ -1412,6 +1440,8 @@ switch action
    secondLvl(input);
    
 
+=======
+>>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
 
 
 
@@ -1915,24 +1945,34 @@ function callfMRIProcessing(inputs, slice_case, segment)
     spm_jobman('run',matlabbatch);
 end
 
-function alignImages(input_data)
-matlabbatch{1}.spm.spatial.realign.estimate.data = {input_data};
-matlabbatch{1}.spm.spatial.realign.estimate.eoptions.quality = 0.9;
-matlabbatch{1}.spm.spatial.realign.estimate.eoptions.sep = 4;
-matlabbatch{1}.spm.spatial.realign.estimate.eoptions.fwhm = 5;
-matlabbatch{1}.spm.spatial.realign.estimate.eoptions.rtm = 1;
-matlabbatch{1}.spm.spatial.realign.estimate.eoptions.interp = 2;
-matlabbatch{1}.spm.spatial.realign.estimate.eoptions.wrap = [0 0 0];
-matlabbatch{1}.spm.spatial.realign.estimate.eoptions.weight = '';
+function CONC = AbsoluteConcQunatification(LCmodelConc, met_pars)
+    met = met_pars{1};
+    frac_GM = met_pars{2};
+    frac_WM = met_pars{3};
+    frac_CSF = met_pars{4};
 
-spm_jobman('run',matlabbatch);
-end
+    switch met
+        case 'Glx'
+            N1 = 1;
+            %accroding to https://www.mr.ethz.ch/abstracts/files/ismrm15_0202.pdf
+            met_R_GM = exp(-35/144); %echo time/T2 of glu in GM
+            met_R_WM = exp(-35/106); %echo time/T2 of glu in WM
+            N_H = 1;
+            met_frac_GM = 1;
+            met_frac_WM = 1;
+    end
 
-function AbsoluteConcQunatification(LCmodelConc, met_pars)
-    
+    %Water parameters
+    %https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/mrm.20901
+    R_GM = exp(-35/93);   CONT_GM = 43300/55000;
+    R_WM = exp(-35/73);  CONT_WM = 35580/55000;
+    R_CSF = exp(-35/23);  CONT_CSF = 55000/55000;
+
+    CONC_wat = 55000;
+
     IntRatio = LCmodelConc*N1*1*1/(2*35880*0.7);
     CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
-        (met_frac_GM*met_R_GM+frac_WM*R_WM);
+        (met_frac_GM*met_R_GM+frac_WM*met_R_WM);
 end
 
 function [X] = makeHRF(onsets)
