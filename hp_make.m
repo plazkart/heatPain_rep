@@ -556,7 +556,10 @@ switch action
         pars{1, 1} = [1.9 2.1 1]; 
         sp_fpa_1 = op_freqAlignAverages_fd(sp, pars{1, 1}(1), pars{1, 1}(2), pars{1, 1}(3), 'n');
         fprintf(txt_protocol, 'op_freqAlignAverages_fd: pars - %3.1f %3.1f %3.1f \n', pars{1, 1}(:));
-        sp_fpa_av = op_averaging(sp_fpa_1);  
+        pars{3, 1} = 16;
+        sp_fpa_zf = op_zeropad(sp_fpa_1, pars{3, 1});
+        fprintf(txt_protocol, 'op_zeropad: pars - %02i \n', pars{3, 1}(:));
+        sp_fpa_av = op_averaging(sp_fpa_zf);  
         fprintf(txt_protocol, 'op_averaging \n');
         if size(pars, 1)>1
             sp_fpa_av_wr = op_removeWater(sp_fpa_av, pars{2, 1}{1}, pars{2, 1}{2});
@@ -874,8 +877,8 @@ switch action
         mainStruct.(nam).proc_check.sp_segmented = 1;
         mainStruct = hp_make('save', mainStruct);
         %translate to MNI
-        callNormilise(mainStruct.(nam).proc.(condition).all.path,...
-            [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
+%         callNormilise(mainStruct.(nam).proc.(condition).all.path,...
+%             [mainStruct.meta.folder mainStruct.(nam).folder '\anat\y_' nam '_anat.nii']);
         
     case 'count_fmriMetrics'
         % use as [~, metric] = hp_make('count_fmriMetrics', id, metrics)
@@ -1084,13 +1087,14 @@ switch action
                         end
                     else
                         temp0(id, 1) = mainStruct.(nam).proc.sham.all.(add_parameter);
-                        temp1(id, 1) = mainStruct.(nam).proc.act.all.(add_parameter);
+%                         temp0(id, 1) = mainStruct.(nam).proc.act.all.(add_parameter);
                     end
 
                     %k = k+1;
                 end
                 if contains(add_parameter, 'all')
-                    results_table = array2table([temp0], 'VariableNames', {'NAA', 'Cr', 'Glx', 'NAAerr', 'Crerr', 'Glxerr', 'LWCr', 'LWNAA' }, 'RowNames', out_nams');
+                    %results_table = array2table([temp0], 'VariableNames', {'NAA', 'Cr', 'Glx', 'NAAerr', 'Crerr', 'Glxerr', 'LWCr', 'LWNAA' }, 'RowNames', out_nams');
+                    results_table = array2table([temp0], 'VariableNames', {'NAA', 'Cr', 'Glx', 'NAAerr', 'Crerr', 'Glxerr', 'LWCr', 'LWNAA', 'GM', 'WM', 'CSF', 'Glx_AC', 'NAA_AC', 'Cr_AC' }, 'RowNames', out_nams');
                 else
                     results_table = array2table([temp0, temp1], 'VariableNames', {'rest', 'act'}, 'RowNames', out_nams');
                 end
@@ -1218,7 +1222,7 @@ switch action
         Q6_time_series_task(fmri_file, rp_file, SPM_file);
         saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\Q6.jpg'],'jpg');
 
-<<<<<<< HEAD
+
     case 'b1/b8'
 
 %         hp_make('b1/b8',8)
@@ -1292,8 +1296,7 @@ switch action
 %             hp_make('b1/b8',i)
 %         end
 
-=======
->>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
+
     case 'MaskMeanSignal'
         % Insula (R ans L) and supplementary motor area (SMA)
 
@@ -1301,17 +1304,11 @@ switch action
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
-<<<<<<< HEAD
-        wr_func_file = ([mainStruct.meta.folder '\' nam '\derived\wr' nam '_func.nii']);
-        InsulaL_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_left_thr20.nii']);
-        InsulaR_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_right_thr20.nii']);
-        SMA_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rSMA_thr20.nii']);
-=======
         wr_func_file = ([mainStruct.meta.folder '\FMRS\' nam '\derived\wr' nam '_func.nii']);
         InsulaL_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_left_thr20.nii']);
         InsulaR_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_right_thr20.nii']);
         SMA_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rSMA_thr20.nii']);
->>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
+
 
         HeaderInfo0 = spm_vol(wr_func_file);
         disp(HeaderInfo0(1));
@@ -1369,7 +1366,7 @@ switch action
         MeanSMA = S_SMA/N_SMA;
         writematrix(MeanSMA,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanSMA.txt'],"Delimiter",'tab');
 
-<<<<<<< HEAD
+
     case 'HRF_GLMsingle'
         % to activate the case -    hp_make('HRF_GLMsingle',12)
         % git clone --recurse-submodules https://github.com/cvnlab/GLMsingle.git          
@@ -1440,8 +1437,6 @@ switch action
    secondLvl(input);
    
 
-=======
->>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
 
 
 
@@ -1957,6 +1952,24 @@ function CONC = AbsoluteConcQunatification(LCmodelConc, met_pars)
             %accroding to https://www.mr.ethz.ch/abstracts/files/ismrm15_0202.pdf
             met_R_GM = exp(-35/144); %echo time/T2 of glu in GM
             met_R_WM = exp(-35/106); %echo time/T2 of glu in WM
+            N_H = 1;
+            met_frac_GM = 1;
+            met_frac_WM = 1;
+
+            case 'NAA'
+            N1 = 1;
+            %accroding to https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/mrm.21715
+            met_R_GM = exp(-35/269); %echo time/T2 of NAA in GM
+            met_R_WM = exp(-35/374); %echo time/T2 of NAA in WM
+            N_H = 1;
+            met_frac_GM = 1;
+            met_frac_WM = 1;
+
+            case 'Cr'
+            N1 = 1;
+            %accroding to https://www.mr.ethz.ch/abstracts/files/ismrm15_0202.pdf
+            met_R_GM = exp(-35/156); %echo time/T2 of Cr in GM
+            met_R_WM = exp(-35/179); %echo time/T2 of Cr in WM
             N_H = 1;
             met_frac_GM = 1;
             met_frac_WM = 1;

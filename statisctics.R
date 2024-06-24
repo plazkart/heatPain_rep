@@ -14,3 +14,8 @@ apply(bc_df,2,shapiro.test)
 
 #make statistic miracle
 
+# 2. Open SHAM condition results
+dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\all_all_sham.csv')
+
+# Check normality of concentratons and see historam
+apply(dats$Glx_AC,2,shapiro.test)
