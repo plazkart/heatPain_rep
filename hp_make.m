@@ -1218,7 +1218,7 @@ switch action
         Q6_time_series_task(fmri_file, rp_file, SPM_file);
         saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\Q6.jpg'],'jpg');
 
-<<<<<<< HEAD
+
     case 'b1/b8'
 
 %         hp_make('b1/b8',8)
@@ -1292,8 +1292,7 @@ switch action
 %             hp_make('b1/b8',i)
 %         end
 
-=======
->>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
+
     case 'MaskMeanSignal'
         % Insula (R ans L) and supplementary motor area (SMA)
 
@@ -1301,17 +1300,17 @@ switch action
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
-<<<<<<< HEAD
+
         wr_func_file = ([mainStruct.meta.folder '\' nam '\derived\wr' nam '_func.nii']);
         InsulaL_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_left_thr20.nii']);
         InsulaR_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_right_thr20.nii']);
         SMA_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rSMA_thr20.nii']);
-=======
+
         wr_func_file = ([mainStruct.meta.folder '\FMRS\' nam '\derived\wr' nam '_func.nii']);
         InsulaL_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_left_thr20.nii']);
         InsulaR_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rInsula_right_thr20.nii']);
         SMA_mask_file = ([mainStruct.meta.folder '\FMRS\Atlases\rSMA_thr20.nii']);
->>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
+
 
         HeaderInfo0 = spm_vol(wr_func_file);
         disp(HeaderInfo0(1));
@@ -1369,7 +1368,6 @@ switch action
         MeanSMA = S_SMA/N_SMA;
         writematrix(MeanSMA,[mainStruct.meta.folder '\FMRS\' nam '\derived\MeanSMA.txt'],"Delimiter",'tab');
 
-<<<<<<< HEAD
     case 'HRF_GLMsingle'
         % to activate the case -    hp_make('HRF_GLMsingle',12)
         % git clone --recurse-submodules https://github.com/cvnlab/GLMsingle.git          
@@ -1440,8 +1438,6 @@ switch action
    secondLvl(input);
    
 
-=======
->>>>>>> 8cdeed02eee8d9defed9c3bb3ab365b1adfd1323
 
 
 
