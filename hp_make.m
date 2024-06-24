@@ -556,7 +556,10 @@ switch action
         pars{1, 1} = [1.9 2.1 1]; 
         sp_fpa_1 = op_freqAlignAverages_fd(sp, pars{1, 1}(1), pars{1, 1}(2), pars{1, 1}(3), 'n');
         fprintf(txt_protocol, 'op_freqAlignAverages_fd: pars - %3.1f %3.1f %3.1f \n', pars{1, 1}(:));
-        sp_fpa_av = op_averaging(sp_fpa_1);  
+        pars{3, 1} = 16;
+        sp_fpa_zf = op_zeropad(sp_fpa_1, pars{3, 1});
+        fprintf(txt_protocol, 'op_zeropad: pars - %02i \n', pars{3, 1}(:));
+        sp_fpa_av = op_averaging(sp_fpa_zf);  
         fprintf(txt_protocol, 'op_averaging \n');
         if size(pars, 1)>1
             sp_fpa_av_wr = op_removeWater(sp_fpa_av, pars{2, 1}{1}, pars{2, 1}{2});
