@@ -1983,6 +1983,23 @@ function CONC = AbsoluteConcQunatification(LCmodelConc, met_pars)
             N_H = 1;
             met_frac_GM = 1;
             met_frac_WM = 1;
+        case 'NAA'
+            N1 = 1;
+            %accroding to https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/mrm.21715
+            met_R_GM = exp(-35/269); %echo time/T2 of NAA in GM
+            met_R_WM = exp(-35/374); %echo time/T2 of NAA in WM
+            N_H = 1;
+            met_frac_GM = 1;
+            met_frac_WM = 1;
+
+        case 'Cr'
+            N1 = 1;
+            %accroding to https://www.mr.ethz.ch/abstracts/files/ismrm15_0202.pdf
+            met_R_GM = exp(-35/156); %echo time/T2 of Cr in GM
+            met_R_WM = exp(-35/179); %echo time/T2 of Cr in WM
+            N_H = 1;
+            met_frac_GM = 1;
+            met_frac_WM = 1;
     end
 
     %Water parameters
