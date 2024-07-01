@@ -460,7 +460,7 @@ switch action
                     sp_fpa_av_wr.fids);
                 copyfile([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SPAR'],...
                     [new_dir sp_naming '.SPAR']);
-                my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val'}, {1,1,1});
+                my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val', 'samples', 'spec_num_col'}, {1,1,1,1024*16, 1024*16});
                 fprintf( txt_protocol, 'saved in: %s \n', [new_dir sp_naming '.SDAT']);
                 fclose(txt_protocol);
             end
@@ -552,14 +552,15 @@ switch action
         txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
         fprintf(txt_protocol, '------ \n spectra processing steps: case - %s \n', sp_name);
         fprintf(txt_protocol, '%s \n', datetime("today"));
+        pars{3, 1} = 16;
+        sp_zf = op_zeropad(sp, pars{3, 1});
+        fprintf(txt_protocol, 'op_zeropad: pars - %02i \n', pars{3, 1}(:));
 
         pars{1, 1} = [1.9 2.1 1]; 
-        sp_fpa_1 = op_freqAlignAverages_fd(sp, pars{1, 1}(1), pars{1, 1}(2), pars{1, 1}(3), 'n');
+        sp_fpa_zf = op_freqAlignAverages_fd(sp_zf, pars{1, 1}(1), pars{1, 1}(2), pars{1, 1}(3), 'n');
         fprintf(txt_protocol, 'op_freqAlignAverages_fd: pars - %3.1f %3.1f %3.1f \n', pars{1, 1}(:));
-        pars{3, 1} = 16;
-        sp_fpa_zf = op_zeropad(sp_fpa_1, pars{3, 1});
-        fprintf(txt_protocol, 'op_zeropad: pars - %02i \n', pars{3, 1}(:));
-        sp_fpa_av = op_averaging(sp_fpa_zf);  
+        
+        sp_fpa_av = op_averaging(sp_fpa_zf );  
         fprintf(txt_protocol, 'op_averaging \n');
         if size(pars, 1)>1
             sp_fpa_av_wr = op_removeWater(sp_fpa_av, pars{2, 1}{1}, pars{2, 1}{2});
@@ -927,6 +928,29 @@ switch action
 
 
         end
+
+    %% Get data from the  DATABASE
+
+    case 'getValue'
+        %use as [~, resTable] = hp_make('getValue', id, valueChain)
+        %e.g. hp_make('getValue', 20, {'proc','sham', 'all', 'Glx_AC'});
+        % gives you Glx absolute concentration value for 20th subject
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        valueChain = varargin{2};
+        nam = sprintf('sub_%02i', id);
+        
+        temp_struct = mainStruct.(nam);
+        for i=1:length(valueChain)
+            if ~isfield(temp_struct, valueChain{i})
+                error("There is no such value");
+            else
+                temp_struct = temp_struct.(valueChain{i});
+            end
+        end
+        varargout{1} = temp_struct;
+         
+
 
 
     case 'getResSP'
