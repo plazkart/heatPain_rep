@@ -867,10 +867,10 @@ switch action
         MRS_struct = CoRegStandAlone({[mainStruct.meta.folder mainStruct.(nam).folder '\sp\' nam '_' condition '.SDAT']},...
             {[mainStruct.meta.folder mainStruct.(nam).folder '\anat\' nam '_anat.nii']});
         mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived']);
-        copyfile(MRS_struct.mask.vox1.outfile{1}, [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii']);
+        copyfile(MRS_struct.mask.vox1.outfile{1}, [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask_' condition '.nii']);
         delete(MRS_struct.mask.vox1.outfile{1});
         
-        mainStruct.(nam).proc.(condition).all.path = [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask.nii'];
+        mainStruct.(nam).proc.(condition).all.path = [mainStruct.meta.folder mainStruct.(nam).folder '\anat\derived\' nam '_sp_mask_' condition '.nii'];
         mainStruct.(nam).proc.(condition).all.GM = MRS_struct.out.vox1.tissue.fGM;
         mainStruct.(nam).proc.(condition).all.WM = MRS_struct.out.vox1.tissue.fWM;
         mainStruct.(nam).proc.(condition).all.CSF = MRS_struct.out.vox1.tissue.fCSF;
@@ -1050,6 +1050,32 @@ switch action
             end
         end
         varargout{1} = resTable;
+
+    case 'importResultsData2'
+        %use as [~, resTable] = hp_make('importResultsData2', ResCase)
+        %This case uses new function to get values from meta-struture
+        mainStruct = hp_make('load');
+        ResCase = varargin{1};
+        switch ResCase
+            case 'spectra_ALL'
+                %This case get data for ALL spectral data comparison (without dynamics)
+                Values = {'NAA', 'Cr', 'Glx' ,'NAAerr', 'Crerr','Glxerr' ,'LWCr' ,'LWNAA','GM' ,'WM' ,'CSF'};
+                for i=4:32
+                    for ii=1:length(Values)
+                        valueChain = {'proc','act', 'all', Values{ii} };
+                        tableColumns{2*ii-1, 1} = ['act_' Values{ii}];
+                        [~, resTable(i, 2*ii-1)] = hp_make('getValue', i, valueChain);
+                        valueChain = {'proc','sham', 'all', Values{ii}};
+                        tableColumns{2*ii, 1} = ['sham_' Values{ii}];
+                        [~, resTable(i, 2*ii)] = hp_make('getValue', i, valueChain);
+                    end
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
+
+                 writetable(resTable, 'E:\Alex\fMRS-heatPain\_meta\spectraAll.csv');
+        end
+
 
     case 'importResultsData'
         %use as [~, resTable] = hp_make('importResultsData', ResCase, add_flag, add_parameter, mainStruct)
@@ -1745,6 +1771,26 @@ switch action
             stim_duartion(i,1) = mean(timingInfo(:,2))
         end
         varargout{1} = stim_duartion;
+
+    case 'quantifyDiceCoeff'
+        %[~, Dice] = hp_make('quantifyDiceCoeff', id)
+        %Dice coefficient quantification between spectra localization in
+        %ACT and REST conditions
+        id = varargin{1};
+        condition = {'act', 'sham'};
+        mainStruct = hp_make('load');
+        nam = sprintf('sub_%02i', id);
+        
+        if (mainStruct.(nam).proc_check.all.(condition{1})+mainStruct.(nam).proc_check.all.(condition{2}))>1
+            img1 = spm_vol(mainStruct.(nam).proc.(condition{1}).all.path);
+            img1 = spm_read_vols(img1);
+            img2 = spm_vol(mainStruct.(nam).proc.(condition{2}).all.path);
+            img2 = spm_read_vols(img2);
+            mainStruct.(nam).proc.Dice = sum(2*img1.*img2, 'all')/sum(img1+img2, 'all');
+        end
+        varargout{1}=  mainStruct.(nam).proc.Dice;
+        mainStruct = hp_make('save', mainStruct);
+
 
     case 'BugFix_GET_FMRI_START'
         %Made 09-02-2024 AYakovlev
