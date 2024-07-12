@@ -398,7 +398,7 @@ switch action
         
         cases = {'sham', 'ref', 'act'};
         sp_name = varargin{2};
-        time_point_action = varargin{3};
+        sp_action = varargin{3};
         k=0;
         for i=1:length(cases)
             if strcmp(sp_name, cases{i})
@@ -413,59 +413,81 @@ switch action
             end
         end
         
-        if time_point_action<1
-            [mainStruct, sp_out] = hp_make('spectraPreprocessing', [mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], mainStruct, id, sp_name);
-            sp_fpa_av_wr = sp_out;
+       switch sp_action
+           case 0
+               [mainStruct, sp_out] = hp_make('spectraPreprocessing', [mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], mainStruct, id, sp_name);
+               sp_fpa_av_wr = sp_out;
 
-            % process as whole
-            txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
-            new_dir = [mainStruct.meta.folder '\' nam '\sp\derived\'];
-            mkdir(new_dir);
-            sp_naming = sprintf('%s_all_%s', nam, sp_name);
-            mrs_writeSDAT([new_dir sp_naming '.SDAT'],...
-                sp_fpa_av_wr.fids);
-            copyfile([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SPAR'],...
-                [new_dir sp_naming '.SPAR']);
-            my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val'}, {1,1,1});
-            fprintf( txt_protocol, 'saved in: %s \n', [new_dir sp_naming '.SDAT']);
-            fclose(txt_protocol);
-            
-        else
-            %process as time points
-            %be sure that you have a time-points table
-            if isfield(mainStruct.(nam).proc, 'tp_matrix')
-                k = max(mainStruct.(nam).proc.tp_matrix); % maximal index of the time point               
-            else
-                error("There is no time points matrix for data grouping. Make 'mrs_task_file' case");
-            end
-            sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], 1);
-            for i=1:k
-                time_point_dynamics = [1:315];
-                time_point_dynamics = time_point_dynamics(mainStruct.(nam).proc.tp_matrix==i);
-                time_point_dynamics = time_point_dynamics(time_point_dynamics<sp.sz(2));
-                sp_tp = op_takeaverages(sp, time_point_dynamics);
-                tp_nam = sprintf('tp_%02i', i);
-                 [mainStruct, sp_out] = hp_make('spectraPreprocessing', sp_tp , mainStruct, id, [tp_nam '_' sp_name]);
-%                 [mainStruct, sp_out] = hp_make('spectraPreprocessing', ...
-%                 sp_tp , mainStruct, id, [tp_nam '_' sp_name], [4.2 5 1]);
-%                 %Made once for sub_11 /19-01-2024
-                sp_fpa_av_wr = sp_out;
+               % process as whole
+               txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
+               new_dir = [mainStruct.meta.folder '\' nam '\sp\derived\'];
+               mkdir(new_dir);
+               sp_naming = sprintf('%s_all_%s', nam, sp_name);
+               mrs_writeSDAT([new_dir sp_naming '.SDAT'],...
+                   sp_fpa_av_wr.fids);
+               copyfile([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SPAR'],...
+                   [new_dir sp_naming '.SPAR']);
+               my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val'}, {1,1,1});
+               fprintf( txt_protocol, 'saved in: %s \n', [new_dir sp_naming '.SDAT']);
+               fclose(txt_protocol);
 
-                % save intothe protocol
-                txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
-                new_dir = [mainStruct.meta.folder '\' nam '\sp\derived\'];
-                mkdir(new_dir);
-                sp_naming = sprintf('%s_all_%s', nam, [tp_nam '_' sp_name]);
-                mrs_writeSDAT([new_dir sp_naming '.SDAT'],...
-                    sp_fpa_av_wr.fids);
-                copyfile([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SPAR'],...
-                    [new_dir sp_naming '.SPAR']);
-                my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val', 'samples', 'spec_num_col'}, {1,1,1,1024*16, 1024*16});
-                fprintf( txt_protocol, 'saved in: %s \n', [new_dir sp_naming '.SDAT']);
-                fclose(txt_protocol);
-            end
-            mainStruct.(nam).proc_check.timepoints_spectra.(sp_name) = 1;
-            mainStruct = hp_make('save', mainStruct);
+           case 1
+               %process as time points
+               %be sure that you have a time-points table
+               if isfield(mainStruct.(nam).proc, 'tp_matrix')
+                   k = max(mainStruct.(nam).proc.tp_matrix); % maximal index of the time point
+               else
+                   error("There is no time points matrix for data grouping. Make 'mrs_task_file' case");
+               end
+               sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], 1);
+               for i=1:k
+                   time_point_dynamics = [1:315];
+                   time_point_dynamics = time_point_dynamics(mainStruct.(nam).proc.tp_matrix==i);
+                   time_point_dynamics = time_point_dynamics(time_point_dynamics<sp.sz(2));
+                   sp_tp = op_takeaverages(sp, time_point_dynamics);
+                   tp_nam = sprintf('tp_%02i', i);
+                   [mainStruct, sp_out] = hp_make('spectraPreprocessing', sp_tp , mainStruct, id, [tp_nam '_' sp_name]);
+                   %                 [mainStruct, sp_out] = hp_make('spectraPreprocessing', ...
+                   %                 sp_tp , mainStruct, id, [tp_nam '_' sp_name], [4.2 5 1]);
+                   %                 %Made once for sub_11 /19-01-2024
+                   sp_fpa_av_wr = sp_out;
+
+                   % save intothe protocol
+                   txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
+                   new_dir = [mainStruct.meta.folder '\' nam '\sp\derived\'];
+                   mkdir(new_dir);
+                   sp_naming = sprintf('%s_all_%s', nam, [tp_nam '_' sp_name]);
+                   mrs_writeSDAT([new_dir sp_naming '.SDAT'],...
+                       sp_fpa_av_wr.fids);
+                   copyfile([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SPAR'],...
+                       [new_dir sp_naming '.SPAR']);
+                   my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val', 'samples', 'spec_num_col'}, {1,1,1,1024*16, 1024*16});
+                   fprintf( txt_protocol, 'saved in: %s \n', [new_dir sp_naming '.SDAT']);
+                   fclose(txt_protocol);
+               end
+               mainStruct.(nam).proc_check.timepoints_spectra.(sp_name) = 1;
+               mainStruct = hp_make('save', mainStruct);
+           case 2
+               sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], 1);
+               for i=1:3
+                   sp_p{i} = op_takeaverages(sp, 100*i-99:100*i);
+                   [~, sp_out] = hp_make('spectraPreprocessing', sp_p{i}, mainStruct, id, sp_name);
+                   sp_fpa_av_wr = sp_out;
+                   sp_naming = sprintf('%s_p%i_%s', nam, i, sp_name);
+                    new_dir = [mainStruct.meta.folder '\' nam '\sp\derived\'];
+                   mrs_writeSDAT([new_dir sp_naming '.SDAT'],...
+                       sp_fpa_av_wr.fids);
+                   copyfile([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SPAR'],...
+                       [new_dir sp_naming '.SPAR']);
+                   my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val'}, {1,1,1});
+                   my_editSPAR([new_dir sp_naming '.SPAR'],{'samples'}, {2048*16});
+                   txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
+                   fprintf( txt_protocol, 'saved in: %s \n', [new_dir sp_naming '.SDAT']);
+                   fclose(txt_protocol);
+
+               end
+
+       
 
 
            
