@@ -508,41 +508,53 @@ switch action
 
         nam = sprintf('sub_%02i', id);
         
-        if tp
-            for i=1:mainStruct.(nam).proc_check.tp_spectra_res.(condition)
-                sp_nam = sprintf('tp_%02i', i);
-                if bc
-                    sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '_bc.SDAT'], 1);
-                else
-                    sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '.SDAT'], 1);
+        switch tp
+            case 1
+                for i=1:mainStruct.(nam).proc_check.tp_spectra_res.(condition)
+                    sp_nam = sprintf('tp_%02i', i);
+                    if bc
+                        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '_bc.SDAT'], 1);
+                    else
+                        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '.SDAT'], 1);
+                    end
+                    sp.flags.averaged = 1;
+                    sp.dims.averages = 0;
+                    sp = op_autophase(sp, 1.8, 3.5, 0);
+                    Cr_fwhm = op_getLW(sp, 2.8, 3.1);
+                    NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+                    if bc
+                        mainStruct.(nam).proc.(condition).(sp_nam).LWCr_bc = Cr_fwhm;
+                        mainStruct.(nam).proc.(condition).(sp_nam).LWNAA_bc = NAA_fwhm;
+                    else
+                        mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
+                        mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
+                    end
+
                 end
+            case 0
+                if mainStruct.(nam).proc_check.all.(condition)<1
+                    return;
+                end
+                sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' condition '.SDAT'], 1);
                 sp.flags.averaged = 1;
                 sp.dims.averages = 0;
                 sp = op_autophase(sp, 1.8, 3.5, 0);
                 Cr_fwhm = op_getLW(sp, 2.8, 3.1);
                 NAA_fwhm = op_getLW(sp, 1.8, 2.15);
-                if bc
-                    mainStruct.(nam).proc.(condition).(sp_nam).LWCr_bc = Cr_fwhm;
-                    mainStruct.(nam).proc.(condition).(sp_nam).LWNAA_bc = NAA_fwhm;
-                else
-                    mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
-                    mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
+                mainStruct.(nam).proc.(condition).all.LWCr = Cr_fwhm;
+                mainStruct.(nam).proc.(condition).all.LWNAA = NAA_fwhm;
+            case 2
+                for i=1:3
+                    tp_nam = sprintf('p%i', i);
+                    sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' tp_nam '_' condition '.SDAT'], 1);
+                    sp.flags.averaged = 1;
+                    sp.dims.averages = 0;
+                    sp = op_autophase(sp, 1.8, 3.5, 0);
+                    Cr_fwhm = op_getLW(sp, 2.8, 3.1);
+                    NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+                    mainStruct.(nam).proc.(condition).(tp_nam).LWCr = Cr_fwhm;
+                    mainStruct.(nam).proc.(condition).(tp_nam).LWNAA = NAA_fwhm;
                 end
-
-            end
-        else
-            if mainStruct.(nam).proc_check.all.(condition)<1
-                return;
-            end
-            sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' condition '.SDAT'], 1);
-            sp.flags.averaged = 1;
-            sp.dims.averages = 0;
-            sp = op_autophase(sp, 1.8, 3.5, 0);
-            Cr_fwhm = op_getLW(sp, 2.8, 3.1);
-            NAA_fwhm = op_getLW(sp, 1.8, 2.15);
-            mainStruct.(nam).proc.(condition).all.LWCr = Cr_fwhm;
-            mainStruct.(nam).proc.(condition).all.LWNAA = NAA_fwhm;
-            
         end
         hp_make('save', mainStruct);
 
@@ -1096,6 +1108,30 @@ switch action
                 varargout{1} = resTable;
 
                  writetable(resTable, 'E:\Alex\fMRS-heatPain\_meta\spectraAll.csv');
+            case 'spectra_6p'
+                Values = {'NAA', 'Cr', 'Glx' ,'NAAerr', 'Crerr','Glxerr' ,'LWCr' ,'LWNAA'};
+                for i=4:32
+                    k=1;
+                    for ii=1:length(Values)
+                        
+                        for ij = 1:3
+                            sp_nam = sprintf('p%i', ij);
+                        
+                            valueChain = {'proc','act', sp_nam, Values{ii} };
+                            tableColumns{k, 1} = ['act_' sp_nam '_' Values{ii}];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k=k+1;
+                            valueChain = {'proc','sham', sp_nam, Values{ii}};
+                            tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k=k+1;
+                        end
+                    end
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
+
+                 writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectra6P.csv');
         end
 
 
