@@ -470,7 +470,11 @@ switch action
            case 2
                sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], 1);
                for i=1:3
-                   sp_p{i} = op_takeaverages(sp, 100*i-99:100*i);
+                   if 100*i>sp.averages
+                       sp_p{i} = op_takeaverages(sp, 100*i-99:sp.averages);
+                   else
+                       sp_p{i} = op_takeaverages(sp, 100*i-99:100*i);
+                   end
                    [~, sp_out] = hp_make('spectraPreprocessing', sp_p{i}, mainStruct, id, sp_name);
                    sp_fpa_av_wr = sp_out;
                    sp_naming = sprintf('%s_p%i_%s', nam, i, sp_name);
@@ -726,6 +730,19 @@ switch action
                     end
                 end
                 hp_make('copyData', id,  out_path, 'makeProcessingList')
+
+            case 'sixPoints_mrs'
+                cases = {'sham', 'act'};
+                for ii =1:2
+                    copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*_p*' cases{ii} '.*']);
+                    for i = 1:length(copyFiles)
+                        if ~contains(copyFiles(i).name, 'bc')
+                            copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
+                        end
+                    end
+                end
+                hp_make('copyData', id,  out_path, 'makeProcessingList')
+
             case 'tp_mrs'
                 if mainStruct.(nam).proc_check.timepoints_spectra.sham<1
                     error('There is no time points divided data YET');
@@ -798,6 +815,47 @@ switch action
             
 
         %% Results parsing and summarising
+    case 'getTableData2'
+        %use as hp_make('getTableData2', path, id, tp_case)
+        %Since there is more cases than before, a new release of the
+        %function is needed
+        %tp_case: if 2 - for six points processing pipeline
+        mainStruct = hp_make('load');
+        res_path = varargin{1};
+        id = varargin{2};
+        nam = sprintf('sub_%02i', id);
+        fils = dir([res_path '\' nam '*\table']);
+        if length(varargin)>2
+            tp_case = varargin{3};
+        else
+            tp_case = 0;
+        end
+        
+        switch tp_case
+            case 2
+                for i=1:length(fils)
+                    temp = split(fils(i).folder, '_');
+                    temp{end-1} = regexp(temp{end-1}, '\d', 'match');
+                    tp_num = str2num(temp{end-1}{1});
+                    mod_case = temp{end};
+
+                    out_dir = sprintf('p%i_%s',tp_num, mod_case);
+                    mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
+                    copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
+                    copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
+                    
+                    tp_nam = sprintf('p%i', tp_num);
+                    mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
+                    mainStruct.(nam).proc.(mod_case).(tp_nam).path = [mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir '\' fils(i).name];
+
+
+                    mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, tp_nam);
+                end
+        mainStruct = hp_make('save', mainStruct);
+
+
+        end
+
     case 'getTableData'
         %use as hp_make('getTableData', path, id, tp_case)
         mainStruct = hp_make('load');
