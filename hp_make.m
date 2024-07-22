@@ -89,6 +89,7 @@ switch action
         fprintf(txt_protocol, 'Data processing steps log-file. \n Subject: %s \n Date: %s \n', nam, datetime("today"));
         fclose(txt_protocol);
         
+        %% 
         % parsing data and place it into correct directory
     case 'new_field'
         %use as hp_make('new_field', fieldname, default_value);
@@ -234,7 +235,33 @@ switch action
             copyfile([fils_csv(1).folder '\' fils_csv(1).name], [mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_est.csv']);
         end
         hp_make('save', mainStruct);
+
+    case 'PsychoPy csv file'
+        % hp_make('PsychoPy csv file', id);
+        mainStruct = hp_make('load');
+        who_id = varargin{1};
+        nam = sprintf('sub_%02i', who_id);
+
+        fils_csv = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*.csv']);
+        for i = 1:length(fils_csv)
+            csvVal(i, 1) = fils_csv(i).datenum;
+        end
+        [~, lateCSV] = max(csvVal);
+        if lateCSV<2
+            nam
+            warning("May be this file is not for MRS");
+        end
+        csv_file = readmatrix([fils_csv(lateCSV).folder '\' fils_csv(lateCSV).name]);
+        % get info from csv for MRS
+        start_of_MR = csv_file(:, 15);
+        start_of_MR = start_of_MR(~isnan(start_of_MR));
+        triggerTimes = csv_file(:, 17);
+        triggerTimes = triggerTimes(~isnan(triggerTimes));
+
+        mainStruct.(nam).proc.startMR = start_of_MR;
+        mainStruct.(nam).proc.TTLtimes = triggerTimes;
         
+        hp_make('save', mainStruct);
 %% input-output tasks
 
     case 'save'
@@ -631,7 +658,11 @@ switch action
         end
 
         % using psycho py data
-%         csv_file = readmatrix("G:\_other\fMRS-heatPain\_unsorted\New folder\igor_heatPainMRS_2023_Nov_10_1924.csv");
+%         csv_file = readmatrix('\\WIN-JC5203G34U7\fMRS-heatPain\sub_19\luk_2024_Apr_03_1936.csv');
+%         start_of_MR = csv_file(:, 15);
+%         start_of_MR = start_of_MR(~isnan(start_of_MR));
+%         triggerTimes = csv_file(:, 17);
+%         triggerTimes = triggerTimes(~isnan(triggerTimes));
 %         task_starts = csv_file(:, 19);
 %         task_starts = task_starts(~isnan(task_starts));
 %         task_starts = task_starts(1:37);
@@ -649,7 +680,7 @@ switch action
         end
         time_point_matrix = zeros(mrs_NSAmax, 1);
 %         time_point_matrix(start_dynamic) = 1;
-        task_starts = task_starts+12;
+        task_starts = task_starts+(mainStruct.(nam).proc.start_dynamic-1)*2;
         task_starts(task_starts>mrs_NSAmax*2)=[];
         task_starts_dyns = round(task_starts/2);
         time_point_matrix(task_starts_dyns) = 1;
@@ -657,6 +688,22 @@ switch action
             time_point_matrix(setdiff(task_starts_dyns+k-1, find(time_point_matrix==1))) = k;
         end
         time_point_matrix(mrs_NSAmax+1:end) = [];
+
+        %test of stimulus fuction
+        if true
+            xlFile = readtable([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
+            
+            temp = xlFile.Tec_C_;
+            time = xlFile.Timestamp_msec_/1000;
+            
+
+            mrs_dyn_timePoints =  [0:length(time_point_matrix)]*2-12+ttlTime(1);
+            plot(time, temp); hold on;
+            tps = mrs_dyn_timePoints(time_point_matrix==1);
+            scatter(mrs_dyn_timePoints(time_point_matrix==1), 48);
+
+        end
+
 %         for i=start_dynamic:mrs_NSAmax
 %             if (task_starts(k)>mrs_timings(i)) && (task_starts(k)<mrs_timings(i)+2)
 %                 time_point_matrix(i) = 1;
@@ -674,13 +721,29 @@ switch action
         mainStruct.(nam).proc.tp_matrix = time_point_matrix;
         mainStruct.(nam).proc_check.tp_matrix = 1;
         
-
+    case 'Make_HRFforMRSdata'
+        %use as hp_make('Make_HRFforMRSdata', id)
         %make personal HRF for heat pain stimuli during fMRS
         %simple HRF convolved with stimulus function (var task_starts)
         %get standard HRF
+
+        mainStruct = hp_make('load');
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+
+        time_point_matrix = mainStruct.(nam).proc.tp_matrix;
+
+        ttlTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
+            regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
+            task_starts = regressorList(:,1)-ttlTime(1);
+            stim_dur = regressorList(:,2);
+        task_starts = task_starts + (mainStruct.(nam).proc.start_dynamic-1)*2;
+
         MR = 16;
         dt = [0:315*MR*2]/MR;
         u = zeros(length(dt), 1);
+
+        %trying to find timestamps in which stimulation was ON
         for i=1:length(task_starts)
 %             if i==59
 %                 test = 1;
@@ -697,6 +760,7 @@ switch action
             upper_side = a(1)+ceil(dt(a(1))-(task_starts(i)+3));
             u(lower_side:upper_side, 1)=1;
         end
+
         pars = [6, 16, 1, 1, 6, 0, 32];
         [bf, p] = spm_hrf(1/16, pars(1:6), 16);
 
@@ -1145,6 +1209,20 @@ switch action
                 varargout{1} = resTable;
 
                 writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\BOLD_MRS.csv');
+                
+            case 'BOLD_HRF_mrs'
+                valueChain = {'proc','hfr_mrs'};
+                for i=4:32
+                    k=1;
+                    for ij = 1:6
+                        sp_nam = sprintf('%02i', ij);
+                        tableColumns{k, 1} = [sp_nam];
+                        k = k+1;
+                    end
+                        [~, resTable(i, :)] = hp_make('getValue', i, valueChain);
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
                 
         end
 
