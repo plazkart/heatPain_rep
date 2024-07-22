@@ -332,7 +332,9 @@ switch action
             inputs{2, crun} = func_data; % fMRI model specification: Scans - cfg_files
             if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
                 regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
-                regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.(nam).proc.dummy_time);
+%                 regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.(nam).proc.dummy_time);
+                TTL_time = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+                regressorList(:, 1) = regressorList(:, 1) - TTL_time(1) - (12 - mainStruct.(nam).proc.dummy_time);
             end
             inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
             inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
@@ -1831,7 +1833,7 @@ function startTime = getTTLtime(xlsfile)
         end
     else
         tstamp_1 = eventsTable.Tec_C_-35;
-        thrs_1 = find(tstamp_1>0.1); thrs_1 = thrs_1(1);
+        thrs_1 = find(tstamp_1>0.2); thrs_1 = thrs_1(1);
         startTime = eventsTable.Timestamp_msec_(thrs_1)/1000;
     end
     
