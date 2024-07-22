@@ -432,7 +432,7 @@ switch action
                fclose(txt_protocol);
 
            case 1
-               %process as time points
+               %process as interleaved time points
                %be sure that you have a time-points table
                if isfield(mainStruct.(nam).proc, 'tp_matrix')
                    k = max(mainStruct.(nam).proc.tp_matrix); % maximal index of the time point
@@ -452,7 +452,7 @@ switch action
                    %                 %Made once for sub_11 /19-01-2024
                    sp_fpa_av_wr = sp_out;
 
-                   % save intothe protocol
+                   % save into the protocol
                    txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
                    new_dir = [mainStruct.meta.folder '\' nam '\sp\derived\'];
                    mkdir(new_dir);
@@ -1041,48 +1041,6 @@ switch action
             end
         end
         varargout{1} = temp_struct;
-         
-
-
-
-    case 'getResSP'
-        %use as [~, resTable] = hp_make('getResSP', condition, met)
-        %gives results of the spectroscopy experiment as a matrix
-        %available metabolites (met) - 'Cr', 'NAA', 'Glx', 'LW'
-        mainStruct = hp_make('load');
-        
-        condition = varargin{1};
-        met = varargin{2};
-        
-        if contains(met, 'LW')
-            resTable.LW.Cr = zeros([mainStruct.meta.subNumbers, 6]);
-            resTable.LW.NAA = zeros([mainStruct.meta.subNumbers, 6]);
-        else
-            resTable.(met).Conc = zeros([mainStruct.meta.subNumbers, 6]);
-            resTable.(met).ConcCr = zeros([mainStruct.meta.subNumbers, 6]);
-        end
-
-        for id=1:mainStruct.meta.subNumbers
-            nam = sprintf('sub_%02i', id);
-            if mainStruct.(nam).proc_check.tp_spectra_res.(condition)>0
-                colNum = mainStruct.(nam).proc_check.tp_spectra_res.(condition);
-                for ii=1:colNum
-                    tp_nam = sprintf('tp_%02i', ii);
-                    if contains(met, 'LW')
-                        if ~isfield(mainStruct.(nam).proc.(condition).(tp_nam), 'LWNAA')
-                            continue
-                        end
-                        resTable.LW.NAA(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWNAA;
-                        resTable.LW.Cr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).LWCr;
-                    else
-                        resTable.(met).Conc(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).(met);
-                        resTable.(met).ConcCr(id, ii) = mainStruct.(nam).proc.(condition).(tp_nam).(met)/mainStruct.(nam).proc.(condition).(tp_nam).Cr;
-                    end
-
-                end
-            end
-        end
-        varargout{1} = resTable;
 
         %concentration quantification
     case 'AbsoluteConc'
@@ -1111,37 +1069,6 @@ switch action
 %         IntRatio = I*N1*1*1/(2*35880*0.7);
 %         CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
 %             (met_frac_GM*met_R_GM+frac_WM*R_WM);
-
-
-    case 'getResSP_ALL'
-        %use as [~, resTable] = hp_make('getResSP_ALL', condition, met)
-        %gives results of the spectroscopy experiment as a matrix
-        %available metabolites (met) - 'Cr', 'NAA', 'Glx', 'LW'
-        mainStruct = hp_make('load');
-
-%         condition = varargin{1};
-%         met = varargin{2};
-
-%         if contains(met, 'LW')
-%             resTable.LW.Cr = zeros([mainStruct.meta.subNumbers, 6]);
-%             resTable.LW.NAA = zeros([mainStruct.meta.subNumbers, 6]);
-%         else
-%             resTable.(met).Conc = zeros([mainStruct.meta.subNumbers, 6]);
-%             resTable.(met).ConcCr = zeros([mainStruct.meta.subNumbers, 6]);
-%         end
-        
-        condition = {'sham' , 'act'};
-        for id=1:mainStruct.meta.subNumbers
-            for ii=1:2
-                nam = sprintf('sub_%02i', id);
-                if mainStruct.(nam).proc_check.all.(condition{ii})>0
-                    resTable.met.NAA(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.NAA;
-                    resTable.met.Cr(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.Cr;
-                    resTable.met.Glx(id, ii) = mainStruct.(nam).proc.(condition{ii}).all.Glx;
-                end
-            end
-        end
-        varargout{1} = resTable;
 
     case 'importResultsData2'
         %use as [~, resTable] = hp_make('importResultsData2', ResCase)
@@ -1190,91 +1117,33 @@ switch action
                 varargout{1} = resTable;
 
                  writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectra6P.csv');
-        end
-
-
-    case 'importResultsData'
-        %use as [~, resTable] = hp_make('importResultsData', ResCase, add_flag, add_parameter, mainStruct)
-        %add_parameter defines what value get from the data structure
-        if length(varargin)<4
-            mainStruct = hp_make('load');
-        else
-            mainStruct = varargin{4};
-        end
-        
-        ResCase = varargin{1};
-        additional_flag = varargin{2};
-        add_parameter = varargin{3};
-        switch ResCase
-            case '_tp'
-                %additional_flag - is for normilising to Cr data values
-                out_nams = {}; k =1;
-                for id = 1:mainStruct.meta.subNumbers
-                    nam = sprintf('sub_%02i', id);
-                    if mainStruct.(nam).proc_check.bold_correction>0
-                        out_nams{k} = [nam '_sh']; 
-                        for ii = 1:6
-                            tp_nam = sprintf('tp_%02i', ii);
-                            temp0(k, ii) = mainStruct.(nam).proc.sham.(tp_nam).(add_parameter);
-                            temp1(k, ii) = mainStruct.(nam).proc.act.(tp_nam).(add_parameter);
-                            temp2(k, ii) = mainStruct.(nam).proc.act.([tp_nam '_bc']).(add_parameter);
-                            if additional_flag>0
-                                temp0(k, ii) = mainStruct.(nam).proc.sham.(tp_nam).(add_parameter)/mainStruct.(nam).proc.sham.(tp_nam).Cr;
-                                temp1(k, ii) = mainStruct.(nam).proc.act.(tp_nam).(add_parameter)/mainStruct.(nam).proc.act.(tp_nam).Cr;
-                                temp2(k, ii) = mainStruct.(nam).proc.act.([tp_nam '_bc']).(add_parameter)/mainStruct.(nam).proc.act.([tp_nam '_bc']).Cr;
-                            end
+               
+            case 'BOLD_MRS'
+                % only linewidthes in both cases for time points
+                Values = {'LWCr' ,'LWNAA'};
+                for i=4:32
+                    k=1;
+                    for ii=1:length(Values)
+                        for ij = 1:6
+                            sp_nam = sprintf('tp_%02i', ij);
+                        
+                            valueChain = {'proc','act', sp_nam, Values{ii} };
+                            tableColumns{k, 1} = ['act_' sp_nam '_' Values{ii}];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k=k+1;
+                            valueChain = {'proc','sham', sp_nam, Values{ii}};
+                            tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k=k+1;
                         end
-                        k = k + 1;
-%                         results_table = table([], zeros(mainStruct.meta.subNumbers*2, 6),'RowNames',{'name', ...
-%                     'tp_01', 'tp_02', 'tp_03', 'tp_04', 'tp_05', 'tp_06'});
                     end
                 end
-                for i=1:length(out_nams)
-                    nam = sprintf('sub_%02i', i);
-                    out_nams{i+13} = [nam '_act'];
-                    out_nams{i+26} = [nam '_bc'];
-                end
-                results_table = array2table([temp0; temp1; temp2], 'VariableNames', {'tp_01', 'tp_02', 'tp_03', 'tp_04', 'tp_05', 'tp_06'}, 'RowNames', out_nams);
-                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '.csv']); 
-                varargout{1} = results_table;
-            case 'all'
-                out_nams = {}; k = 1;
-                for id = 1:mainStruct.meta.subNumbers
-                    nam = sprintf('sub_%02i', id);
-                    out_nams{id} = nam;
-                    if mainStruct.(nam).proc_check.all.sham<1
-                        continue;
-                    end
-                    if contains(add_parameter, 'all')
-                        fildNames = fieldnames(mainStruct.(nam).proc.sham.all);
-                        for ii = 3:length(fildNames)
-                            temp0(id, ii-2) = mainStruct.(nam).proc.sham.all.(fildNames{ii});
-%                             temp0(id, ii-2) = mainStruct.(nam).proc.act.all.(fildNames{ii});
-                        end
-                    else
-                        temp0(id, 1) = mainStruct.(nam).proc.sham.all.(add_parameter);
-                        temp1(id, 1) = mainStruct.(nam).proc.act.all.(add_parameter);
-                    end
 
-                    %k = k+1;
-                end
-                if contains(add_parameter, 'all')
-                    results_table = array2table([temp0], 'VariableNames', {'NAA', 'Cr', 'Glx', 'NAAerr', 'Crerr', 'Glxerr', 'LWCr', 'LWNAA' }, 'RowNames', out_nams');
-                else
-                    results_table = array2table([temp0, temp1], 'VariableNames', {'rest', 'act'}, 'RowNames', out_nams');
-                end
-                %remove rows without data
-                remove_rows = [];
-                for i=1:mainStruct.meta.subNumbers
-                    if results_table.NAA(i)==0
-                         remove_rows = [remove_rows i];
-                    end
-                end
-                results_table(remove_rows,:) = [];
-                writetable(results_table, [mainStruct.meta.YDfolder '\' add_parameter '_all_sham.csv']); 
-                varargout{1} = results_table;
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
 
-
+                writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\BOLD_MRS.csv');
+                
         end
 
                 
