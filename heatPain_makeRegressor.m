@@ -1,9 +1,10 @@
 %
 function  regressorList = heatPain_makeRegressor(taskFile)
- xlFile = xlsread(taskFile);
+%  xlFile = xlsread(taskFile);
+ xlFile = readtable(taskFile);
 
-time = xlFile(:, 1);
-temp = xlFile(:, 3);
+time = xlFile.Timestamp_msec_;
+temp = xlFile.Tec_C_;
 
 tempStart = min(temp(1:1000))+ (max(temp) - min(temp(1:1000)))*0.9;
 

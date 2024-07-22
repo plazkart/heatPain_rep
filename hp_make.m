@@ -514,7 +514,7 @@ switch action
         
         switch tp
             case 1
-                for i=1:mainStruct.(nam).proc_check.tp_spectra_res.(condition)
+                for i=1:6
                     sp_nam = sprintf('tp_%02i', i);
                     if bc
                         sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '_bc.SDAT'], 1);
