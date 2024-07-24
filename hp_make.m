@@ -648,44 +648,35 @@ switch action
         id = varargin{1};
         nam = sprintf('sub_%02i', id);
         k=2;
+
+        %determination of main values
+        dummy_Delta = mainStruct.(nam).proc.TTLtimes(1) - mainStruct.(nam).proc.startMR; %time between 1st TSA trigger and start of MR-protocol
+
         if floor(mod(mainStruct.(nam).data_check.funcTable, 10^k)/10^(k-1))>0
             ttlTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
             regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
-            task_starts = regressorList(:,1)-ttlTime(1);
-            stim_dur = regressorList(:,2);
+            task_starts = regressorList(:,1)-ttlTime(1)+dummy_Delta; % times of 90% of stimulus temperature
+            %relative to the 1st dynamic of MRS
+            stim_dur = regressorList(:,2); %time between 90% of temperature (star and end)
         else 
             error("There is no stimulation table data to make time_point matrix");
         end
 
-        % using psycho py data
-%         csv_file = readmatrix('\\WIN-JC5203G34U7\fMRS-heatPain\sub_19\luk_2024_Apr_03_1936.csv');
-%         start_of_MR = csv_file(:, 15);
-%         start_of_MR = start_of_MR(~isnan(start_of_MR));
-%         triggerTimes = csv_file(:, 17);
-%         triggerTimes = triggerTimes(~isnan(triggerTimes));
-%         task_starts = csv_file(:, 19);
-%         task_starts = task_starts(~isnan(task_starts));
-%         task_starts = task_starts(1:37);
-%         task_regr = [task_starts diff(task_starts)];
-% 
-%         task_starts = task_starts-task_starts(1);
         mrs_NSAmax = 315;
         mrs_timings = [1:mrs_NSAmax]*2-2;
-        %need to write first active time point
-        if mainStruct.(nam).proc.start_dynamic == 0
-            start_dynamic = 3;
-            mainStruct.(nam).proc.start_dynamic = start_dynamic;
-        else
-            start_dynamic = mainStruct.(nam).proc.start_dynamic;
-        end
         time_point_matrix = zeros(mrs_NSAmax, 1);
-%         time_point_matrix(start_dynamic) = 1;
-        task_starts = task_starts+(mainStruct.(nam).proc.start_dynamic-1)*2;
+        shifts = zeros(length(task_starts));
+
+        for i=1:length(task_starts)
+            tempMRSTimings = mrs_timings - task_starts(i);
+            [shifts(i), idx] = min(abs(tempMRSTimings));
+            time_point_matrix(idx) = 1;
+        end       
+        %need to write first active time point
         task_starts(task_starts>mrs_NSAmax*2)=[];
-        task_starts_dyns = round(task_starts/2);
-        time_point_matrix(task_starts_dyns) = 1;
         for k=2:6
-            time_point_matrix(setdiff(task_starts_dyns+k-1, find(time_point_matrix==1))) = k;
+            tps = find(time_point_matrix==k-1)+1;
+            time_point_matrix(setdiff(tps, find(time_point_matrix==1))) = k;
         end
         time_point_matrix(mrs_NSAmax+1:end) = [];
 
@@ -693,33 +684,29 @@ switch action
         if true
             xlFile = readtable([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
             
+            
             temp = xlFile.Tec_C_;
             time = xlFile.Timestamp_msec_/1000;
+            stimTemp = median(temp(1:1000))+ (max(temp) - median(temp(1:1000)))*0.9;
+
+            time = time-ttlTime(1)+dummy_Delta;
+            
+            figure(); plot(time, temp); hold on;
+            for k=1:6
+                tps = find(time_point_matrix==k);
+                scatter(mrs_timings(tps), ones(size(tps))*stimTemp);
+            end
+            saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\MRStiming.jpg'],'jpg'); hold off;
             
 
-            mrs_dyn_timePoints =  [0:length(time_point_matrix)]*2-12+ttlTime(1);
-            plot(time, temp); hold on;
-            tps = mrs_dyn_timePoints(time_point_matrix==1);
-            scatter(mrs_dyn_timePoints(time_point_matrix==1), 48);
-
         end
-
-%         for i=start_dynamic:mrs_NSAmax
-%             if (task_starts(k)>mrs_timings(i)) && (task_starts(k)<mrs_timings(i)+2)
-%                 time_point_matrix(i) = 1;
-%                 k=k+1; series_num = 1;
-%                 if k==length(task_starts)
-%                     break
-%                 end
-%             else
-%                 series_num = series_num +1;
-%                 time_point_matrix(i) = series_num;
-%             end
-%         end
         
-        mainStruct.(nam).proc.start_dynamic = start_dynamic;
+        mainStruct.(nam).proc.start_dynamic = dummy_Delta;
         mainStruct.(nam).proc.tp_matrix = time_point_matrix;
+        mainStruct.(nam).proc.shifts = shifts;
         mainStruct.(nam).proc_check.tp_matrix = 1;
+
+        mainStruct = hp_make('save', mainStruct);
         
     case 'Make_HRFforMRSdata'
         %use as hp_make('Make_HRFforMRSdata', id)
