@@ -237,7 +237,7 @@ switch action
         hp_make('save', mainStruct);
 
     case 'PsychoPy csv file'
-        % hp_make('PsychoPy csv file', id);
+        % 
         mainStruct = hp_make('load');
         who_id = varargin{1};
         nam = sprintf('sub_%02i', who_id);
@@ -644,7 +644,7 @@ switch action
         %using MEDOC TSA data
         if nargin<2
             error('There no subject name to process');
-        end
+        end 
         id = varargin{1};
         nam = sprintf('sub_%02i', id);
         k=2;
@@ -669,7 +669,8 @@ switch action
 %         task_regr = [task_starts diff(task_starts)];
 % 
 %         task_starts = task_starts-task_starts(1);
-        mrs_NSAmax = 315;
+        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_act.SDAT'], 1);
+        mrs_NSAmax = sp.averages;
         mrs_timings = [1:mrs_NSAmax]*2-2;
         %need to write first active time point
         if mainStruct.(nam).proc.start_dynamic == 0
