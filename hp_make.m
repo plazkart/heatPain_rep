@@ -1152,6 +1152,30 @@ switch action
                 varargout{1} = resTable;
 
                  writetable(resTable, 'E:\Alex\fMRS-heatPain\_meta\spectraAll.csv');
+            case 'spectra_dynamics'
+                %This case get data for ALL spectral data comparison (without dynamics)
+                Values = {'NAA', 'Cr', 'Glx'};
+                for i=4:32
+                    k = 1;
+                    for ii=1:length(Values)
+                        for ij = 1:6
+                            sp_nam = sprintf('tp_%02i', ij);
+                            valueChain = {'proc','act', sp_nam, Values{ii} };
+                            tableColumns{1, k} = ['act_' Values{ii} '_' sp_nam];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k = k+1;
+                            valueChain = {'proc','sham', sp_nam, Values{ii}};
+                            tableColumns{1, k} = ['sham_' Values{ii} '_' sp_nam];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k = k+1;
+                        end
+                    end
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
+
+                writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectraDynamic.csv');
+
             case 'spectra_6p'
                 Values = {'NAA', 'Cr', 'Glx' ,'NAAerr', 'Crerr','Glxerr' ,'LWCr' ,'LWNAA'};
                 for i=4:32
@@ -1179,7 +1203,7 @@ switch action
                
             case 'BOLD_MRS'
                 % only linewidthes in both cases for time points
-                Values = {'LWCr' ,'LWNAA'};
+                Values = {'LWCr' ,'LWNAA', 'HCr', 'HNAA'};
                 for i=4:32
                     k=1;
                     for ii=1:length(Values)
