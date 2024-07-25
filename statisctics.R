@@ -25,46 +25,49 @@ library(dplyr)
 library(tidyverse)
 library(tidyr)
 
-dats <- read.csv('C:\\Users\\user\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS.csv')
+dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS.csv')
 columnsActSham <- cbind(paste0("act", "_tp_0", 1:6, "_LWCr"), paste0("sham", "_tp_0", 1:6, "_LWCr"))
-dats <- dats[, columnsActSham]
+#dats <- dats[, columnsActSham]
 subjectNames <- paste0("sub_", 1:32)
 dats <- dats %>% mutate(subNames = subjectNames) 
 row.names(dats) <- subjectNames
+
+#exclusion and pivoting
+excludedSubjects <- c(1:3, 11)
+dats <- dats[-excludedSubjects,]
+
+dats <- dats %>% pivot_longer(cols = "act_tp_01_LWCr":"sham_tp_06_HNAA",
+                              names_to = "time",
+                              values_to = "LWH")
+
+dats <- dats %>% separate_wider_delim(time, delim = "_tp_", names = c("condition", "time"))
+dats <- dats %>% separate_wider_delim(time, delim = "_", names = c("time", "Value"))
+
+
+dats <- dats %>% 
+  mutate(ValueLWH = case_when(
+    str_detect(Value, "LW") ~ "LW",
+    str_detect(Value, "H") ~ "H"))
+
+dats <- dats %>% 
+  mutate(Metabolite = case_when(
+    str_detect(Value, "Cr") ~ "Cr",
+    str_detect(Value, "NAA") ~ "NAA"))
+
+dats <- dats %>% select(-'Value')
 
 #3.1 QA check for outliers
 # library
 library(ggplot2)
 
+
 # basic scatterplot
-dats %>% filter(condition == 'sham') %>% group_by(subNames) %>% mutate(LW_diff=LW/mean(LW)) %>%
-ungroup() %>% group_by(time) %>%
-ggplot(aes(x=timeD, y=LW_diff, colour=subNames)) + 
-  geom_point()
+dats %>% filter(condition == 'act', ValueLWH == 'LW') %>% group_by(subNames, Metabolite) %>% mutate(LW_diff=LWH/mean(LWH)) %>%
+ungroup() %>% group_by(time, Metabolite) %>% summarise(average_LW = mean(LW_diff, na.rm = TRUE)) %>%
+ggplot(aes(x=time, y=average_LW, colour = Metabolite)) + 
+  geom_point() +
+  geom_line()
 
-
-excludedSubjects <- c(1:3, 11)
-dats <- dats[-excludedSubjects,]
-
-dats <- dats %>% pivot_longer(cols = "act_tp_01_LWCr":"sham_tp_06_LWCr",
-                              names_to = "time",
-                              values_to = "LW")
-
-dats <- dats %>% 
-  mutate(condition = case_when(
-    str_detect(time, "act") ~ "act",
-    str_detect(time, "sham") ~ "sham",
-    TRUE ~ time))
-
-dats <- dats %>% 
-  mutate(timeD = case_when(
-    str_detect(time, "01") ~ '1',
-    str_detect(time, "02") ~ '2',
-    str_detect(time, "03") ~ '3',
-    str_detect(time, "04") ~ '4',
-    str_detect(time, "05") ~ '5',
-    str_detect(time, "06") ~ '6',
-    TRUE ~ time))
 
 dats <- dats %>% select(-time)
 
