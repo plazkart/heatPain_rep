@@ -2116,14 +2116,16 @@ function CONC = AbsoluteConcQunatification(LCmodelConc, met_pars)
 
     %Water parameters
     %https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/mrm.20901
-    R_GM = exp(-35/93);   CONT_GM = 43300/55000;
-    R_WM = exp(-35/73);  CONT_WM = 35580/55000;
-    R_CSF = exp(-35/23);  CONT_CSF = 55000/55000;
+    R2_GM = exp(-35/93); R1_GM = (1 - exp(-2000/832));  CONT_GM = 43300/CONC_wat;
+    R2_WM = exp(-35/73); R1_WM = (1 - exp(-2000/1331)); CONT_WM = 36100/CONC_wat;
+    R2_CSF = exp(-35/23); R1_CSF = (1 - exp(-2000/3817)); CONT_CSF = 53800/CONC_wat;
 
-    CONC_wat = 55000;
+    CONC_wat = 53800;
 
-    IntRatio = LCmodelConc*N1*1*1/(2*35880*0.7);
-    CONC = IntRatio*(2/N_H)*CONC_wat*(frac_GM*R_GM*CONT_GM+frac_WM*R_WM*CONT_WM+frac_CSF*R_CSF*CONT_CSF)/...
+
+    IntRatio = LCmodelConc*N1*1*1/(2*35880*0.7); %denominator was taken from LCmodel manual
+    CONC_csf_corrected = IntRatio/(1-frac_CSF)*CONC_wat;
+    CONC = CONC_csf_corrected*(2/N_H)*(CONT_GM*frac_GM*R1_GM*R2_GM*+frac_WM*R1_WM*R2_WM*CONT_WM+frac_CSF*R1_WM*R2_CSF*CONT_CSF)/...
         (met_frac_GM*met_R_GM+frac_WM*met_R_WM);
 end
 
