@@ -555,12 +555,17 @@ switch action
                     sp = op_autophase(sp, 1.8, 3.5, 0);
                     Cr_fwhm = op_getLW(sp, 2.8, 3.1);
                     NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+
+                    Cr_H = op_getPeakHeight(sp, 2.8, 3.1);
+                    NAA_H = op_getPeakHeight(sp, 1.8, 2.15);
                     if bc
                         mainStruct.(nam).proc.(condition).(sp_nam).LWCr_bc = Cr_fwhm;
                         mainStruct.(nam).proc.(condition).(sp_nam).LWNAA_bc = NAA_fwhm;
                     else
                         mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
                         mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
+                        mainStruct.(nam).proc.(condition).(sp_nam).HCr = Cr_H;
+                        mainStruct.(nam).proc.(condition).(sp_nam).HNAA = NAA_H;
                     end
 
                 end
