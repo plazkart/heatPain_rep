@@ -237,31 +237,55 @@ switch action
         hp_make('save', mainStruct);
 
     case 'PsychoPy csv file'
-        % 
+        % hp_make('PsychoPy csv file', id, MRcase);
         mainStruct = hp_make('load');
         who_id = varargin{1};
         nam = sprintf('sub_%02i', who_id);
+        MRcase = varargin{2};
 
         fils_csv = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*.csv']);
         for i = 1:length(fils_csv)
             csvVal(i, 1) = fils_csv(i).datenum;
         end
-        [~, lateCSV] = max(csvVal);
-        if lateCSV<2
-            nam
-            warning("May be this file is not for MRS");
+        
+        switch MRcase
+            case 'MRS'
+                [~, lateCSV] = max(csvVal);
+                if lateCSV<2
+                    nam
+                    warning("May be this file is not for MRS");
+                end
+
+            case 'MRI'
+                [~, lateCSV] = min(csvVal); 
         end
         csv_file = readmatrix([fils_csv(lateCSV).folder '\' fils_csv(lateCSV).name]);
-        % get info from csv for MRS
-        start_of_MR = csv_file(:, 15);
-        start_of_MR = start_of_MR(~isnan(start_of_MR));
-        triggerTimes = csv_file(:, 17);
-        triggerTimes = triggerTimes(~isnan(triggerTimes));
-
-        mainStruct.(nam).proc.startMR = start_of_MR;
-        mainStruct.(nam).proc.TTLtimes = triggerTimes;
+                % get info from csv for MRS
+                start_of_MR = csv_file(:, 15);
+                start_of_MR = start_of_MR(~isnan(start_of_MR));
+                triggerTimes = csv_file(:, 17);
+                triggerTimes = triggerTimes(~isnan(triggerTimes));
         
+                mainStruct.(nam).proc.(MRcase).startMR = start_of_MR;
+                mainStruct.(nam).proc.(MRcase).TTLtimes = triggerTimes;
+        
+                %get pain estimation from the file
+                try
+                 [rating, reaction_time] = AssessmentParser2([fils_csv(lateCSV).folder '\' fils_csv(lateCSV).name]);
+                catch ME
+                    if contains(ME.message, 'key_resp_2_rt')
+                        return;
+                        rating = 0;
+                        reaction_time = 0;
+                    end
+                end
+                       
+                mainStruct.(nam).proc.(MRcase).rating = rating;
+                mainStruct.(nam).proc.(MRcase).reaction_time = reaction_time;
+
         hp_make('save', mainStruct);
+
+
 %% input-output tasks
 
     case 'save'
@@ -1200,6 +1224,42 @@ switch action
                 varargout{1} = resTable;
 
                  writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectra6P.csv');
+
+            case 'reactionMRS'
+                Values = {'rating', 'reaction_time'};
+                for i=4:32
+                    k=1;
+                    ii = 1;
+                    valueChain = {'proc','MRS', Values{ii} };
+                    tableColumns{k, 1} =  Values{ii};
+                    try
+                        [~, rating] = hp_make('getValue', i, valueChain);
+                    catch ME
+                        if (strcmp(ME.message,'There is no such value'))
+                            continue
+                        end
+                    end 
+                    
+                    resTable(i, k) = mean(rating);
+                    k=k+1;
+                    ii = 2;
+                    valueChain = {'proc','MRS', Values{ii} };
+                    tableColumns{k, 1} =  'meanReactTime';
+                    [~, reactTime] = hp_make('getValue', i, valueChain);
+                    resTable(i, k) = mean(reactTime);
+                    k=k+1;
+                    tableColumns{k, 1} =  'STD_ReactTime';
+                    resTable(i, k) = std(reactTime);
+                    k=k+1;
+                    tableColumns{k, 1} =  'N_ReactTime';
+                    resTable(i, k) = length(reactTime);
+                    k=k+1;
+
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
+                writetable(resTable, 'E:\Alex\fMRS-heatPain\_meta\est_MRS.csv');
+                
                
             case 'BOLD_MRS'
                 % only linewidthes in both cases for time points
