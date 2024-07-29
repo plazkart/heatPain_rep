@@ -1230,7 +1230,7 @@ switch action
                 for i=4:32
                     k=1;
                     ii = 1;
-                    valueChain = {'proc','MRS', Values{ii} };
+                    valueChain = {'proc','MRI', Values{ii} };
                     tableColumns{k, 1} =  Values{ii};
                     try
                         [~, rating] = hp_make('getValue', i, valueChain);
@@ -1245,7 +1245,15 @@ switch action
                     ii = 2;
                     valueChain = {'proc','MRS', Values{ii} };
                     tableColumns{k, 1} =  'meanReactTime';
-                    [~, reactTime] = hp_make('getValue', i, valueChain);
+                    
+                    try
+                        [~, reactTime] = hp_make('getValue', i, valueChain);
+                    catch ME
+                        if (strcmp(ME.message,'There is no such value'))
+                            continue
+                        end
+                    end
+
                     resTable(i, k) = mean(reactTime);
                     k=k+1;
                     tableColumns{k, 1} =  'STD_ReactTime';
@@ -1258,7 +1266,7 @@ switch action
                 end
                 resTable = array2table(resTable, 'VariableNames', tableColumns);
                 varargout{1} = resTable;
-                writetable(resTable, 'E:\Alex\fMRS-heatPain\_meta\est_MRS.csv');
+                writetable(resTable, 'E:\Alex\fMRS-heatPain\_meta\est_MRI.csv');
                 
                
             case 'BOLD_MRS'
@@ -1620,10 +1628,34 @@ switch action
     case '2lvlanalysis'
    % hp_make('2lvlanalysis', temp, hand);
    mainStruct = hp_make('load');
-   temp = varargin{1};
-   hand = varargin{2};
-
-   for i=3:29
+   if length(varargin)>0
+       temp = varargin{1};
+       if length(varargin)<3
+           hand = varargin{2};
+       else
+           other = varargin{3};
+       end
+   end
+    %special case (29-07) for estimation of the stimuli
+    
+    if false
+        %get from csv file
+        estTab = readtable([mainStruct.meta.folder '\_meta\est_MRI.csv']);
+        estTab = table2array(estTab);
+        estTab(isnan(estTab)) = 0;
+        regrTab = []; k =1;
+        for i=3:32
+            %find those data that dont have null
+            nam = sprintf('sub_%02i', i);
+            estTab(isnan(estTab)) = 0;
+            if ~isempty(find(estTab(i, :), 1))
+                input{1, 1}{k, 1} = [mainStruct.meta.folder '\' nam '\derived\res\con_0001.nii']; k = k+1;
+                regrTab = [regrTab; estTab(i, :)];
+            end
+        end
+        input{1, 2} = regrTab(:, 2);
+    end
+   for i=3:32
        nam = sprintf('sub_%02i', i);
        input{1, 1}{i-2, 1} = [mainStruct.meta.folder '\' nam '\derived\res\con_0001.nii'];
    end
@@ -1933,23 +1965,53 @@ switch action
         varargout{1}=  mainStruct.(nam).proc.Dice;
         mainStruct = hp_make('save', mainStruct);
 
-
-    case 'BugFix_GET_FMRI_START'
-        %Made 09-02-2024 AYakovlev
-        %here for different cases (subjects) different time of fMRI beginning
-%         for i=3:6
-%             nam = sprintf('sub_%02i', i);
-%             fils_tab = dir([mainStruct.meta.folder mainStruct.(nam).folder '\fmri*.xlsx']);
-%             a_table = readtable(fullfile(fils_tab(1).folder, fils_tab(1).name));
+    case 'Test: pain responce'
         mainStruct = hp_make('load');
-        mainStruct.sub_03.proc.dummy_time = 8.840187073;
-        mainStruct.sub_04.proc.dummy_time = 9.657222748;
-        mainStruct.sub_05.proc.dummy_time = 9.07359314;
-        for i=6:13
+
+        
+        estTab = readtable([mainStruct.meta.folder '\_meta\est_MRI.csv']);
+        estTab = readtable([mainStruct.meta.folder '\_meta\est_MRI.csv']);
+        estTab = table2array(estTab);
+        estTab(isnan(estTab)) = 0;
+        regrTab = []; k =1;
+        for i=14:32
+            %find those data that dont have null
             nam = sprintf('sub_%02i', i);
-            mainStruct.(nam).proc.dummy_time = 12;
+            fmri_img = spm_vol([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_func.nii']);
+            NSA = length(fmri_img);
+            if ~isempty(find(estTab(i, :), 1))
+                mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived\res_test\']);
+                nrun = 1; % enter the number of runs here
+                jobfile = {[mainStruct.meta.folder '\_meta\stats_empty_job.m']};
+                jobs = repmat(jobfile, 1, nrun);
+                inputs = cell(5, nrun);
+                for crun = 1:nrun
+                    inputs{1, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\res_test']}; % fMRI model specification: Directory - cfg_files
+                    for ij=1:NSA
+                        func_data(ij, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' nam '_func.nii,' num2str(i)]};
+                    end
+                    inputs{2, crun} = func_data; % fMRI model specification: Scans - cfg_files
+                    if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
+                        regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+                        %                 regressorList(:, 1) = regressorList(:, 1) - regressorList(1, 1) - (12 - mainStruct.(nam).proc.dummy_time);
+                        %TTL_time = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+                        regressorList(:, 1) = mainStruct.(nam).proc.MRI.TTLtimes(1:length(regressorList))-mainStruct.(nam).proc.MRI.TTLtimes(1)+estTab(i, 2);
+                    end
+                    inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
+                    inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
+                    inputs{5, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\rp_a' nam '_func.txt']}; % fMRI model specification: Multiple regressors - cfg_files
+                end
+                spm('defaults', 'FMRI');
+                spm_jobman('run', jobs, inputs{:});
+
+            end
         end
-        hp_make('save', mainStruct);
+
+        
+        
+        
+
+
 
     case 'BugFix_LWbc_toBC'
         %Made 18-03-2024 AYakovlev
@@ -2228,16 +2290,20 @@ function [X] = makeHRF(onsets)
 end
 
 function secondLvl(inputs)
-matlabbatch{1}.spm.stats.factorial_design.dir = {'E:\Alex\fMRS-heatPain\_meta\2lvl'};
+matlabbatch{1}.spm.stats.factorial_design.dir = {'E:\Alex\fMRS-heatPain\_meta\2lvl\test29-07'};
 matlabbatch{1}.spm.stats.factorial_design.des.t1.scans = inputs{1, 1};
-matlabbatch{1}.spm.stats.factorial_design.cov(1).c = inputs{1, 2};
-matlabbatch{1}.spm.stats.factorial_design.cov(1).cname = 'temperature';
-matlabbatch{1}.spm.stats.factorial_design.cov(1).iCFI = 1;
-matlabbatch{1}.spm.stats.factorial_design.cov(1).iCC = 1;
-matlabbatch{1}.spm.stats.factorial_design.cov(2).c = inputs{1, 3};
-matlabbatch{1}.spm.stats.factorial_design.cov(2).cname = 'hands';
-matlabbatch{1}.spm.stats.factorial_design.cov(2).iCFI = 1;
-matlabbatch{1}.spm.stats.factorial_design.cov(2).iCC = 1;
+if size(inputs, 2)>1
+    matlabbatch{1}.spm.stats.factorial_design.cov(1).c = inputs{1, 2};
+    matlabbatch{1}.spm.stats.factorial_design.cov(1).cname = 'temperature';
+    matlabbatch{1}.spm.stats.factorial_design.cov(1).iCFI = 1;
+    matlabbatch{1}.spm.stats.factorial_design.cov(1).iCC = 1;
+end
+if size(inputs, 2)>2
+    matlabbatch{1}.spm.stats.factorial_design.cov(2).c = inputs{1, 3};
+    matlabbatch{1}.spm.stats.factorial_design.cov(2).cname = 'hands';
+    matlabbatch{1}.spm.stats.factorial_design.cov(2).iCFI = 1;
+    matlabbatch{1}.spm.stats.factorial_design.cov(2).iCC = 1;
+end
 matlabbatch{1}.spm.stats.factorial_design.multi_cov = struct('files', {}, 'iCFI', {}, 'iCC', {});
 matlabbatch{1}.spm.stats.factorial_design.masking.tm.tm_none = 1;
 matlabbatch{1}.spm.stats.factorial_design.masking.im = 1;
@@ -2271,6 +2337,7 @@ matlabbatch{4}.spm.stats.results.conspec.conjunction = 1;
 matlabbatch{4}.spm.stats.results.conspec.mask.none = 1;
 matlabbatch{4}.spm.stats.results.units = 1;
 matlabbatch{4}.spm.stats.results.export{1}.ps = true;
+matlabbatch{4}.spm.stats.results.export{2}.pdf = true;
 
 spm_jobman('run',matlabbatch);
 end
