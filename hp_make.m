@@ -1067,9 +1067,10 @@ switch action
         metrics = varargin{2};
         nam = sprintf('sub_%02i', id);
 
-        [filepath,name] = fileparts(mainStruct.(nam).proc.sp_mask.path);
-          callSmothing([filepath '\w' name '.nii']);
-        V_mask = spm_vol([filepath '\sw' name '.nii']);
+%         [filepath,name] = fileparts(mainStruct.(nam).proc.sp_mask.path);
+            sp_mask_path = [mainStruct.meta.folder '\' nam '\anat\derived\w' nam '_sp_mask_sham.nii'];
+           callSmothing(sp_mask_path);
+         Vox_mask = spm_vol([mainStruct.meta.folder '\' nam '\anat\derived\sw' nam '_sp_mask_sham.nii']);
         
         switch metrics
             case 'beta'
@@ -1077,7 +1078,7 @@ switch action
                 img_beta1= [fils(1).folder '\' fils(1).name];
                 img_beta2 = [fils(end).folder '\' fils(end).name];
                 V_img_1 = spm_vol(img_beta1);
-                makeSameResolution(V_img_1.fname, V_mask.fname);
+                makeSameResolution(V_img_1.fname, Vox_mask.fname);
                 img_mask = [filepath '\rsw' name '.nii'];
 
                 BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
@@ -1100,6 +1101,19 @@ switch action
                 img_beta2 = [fils(end).folder '\' fils(end).name];
                  BOLD_beta = countBeta(img_mask, img_beta1, img_beta2);
                 varargout{1} = BOLD_beta;
+
+            case 'activationVolume'
+                activatedMap = spm_vol([mainStruct.meta.folder '\' nam '\derived\res\spmT_0001.nii']);
+                makeSameResolution(activatedMap.fname, Vox_mask.fname);
+                Vox_mask = spm_vol([mainStruct.meta.folder '\' nam '\anat\derived\rsw' nam '_sp_mask_sham.nii']);
+                actMap = spm_read_vols(activatedMap); 
+                %actMap(actMap< 3.145452) = 0; actMap(actMap>= 3.145452) = 1; % 3.145452  - from SPM results page, it is slightly different across subjexts
+                Vox_map = spm_read_vols(Vox_mask);
+                intersectionCoef = sum(Vox_map(actMap>= 3.145452), 'all')/sum(Vox_map, 'all');
+                varargout{1} = intersectionCoef;
+                mainStruct.(nam).proc.bold.ActivationVolume = intersectionCoef;
+                mainStruct = hp_make('save', mainStruct);
+
 
 
         end
@@ -1308,6 +1322,19 @@ switch action
                 end
                 resTable = array2table(resTable, 'VariableNames', tableColumns);
                 varargout{1} = resTable;
+            case 'fMRI_metrics'
+                Values = {'MeanIL','MeanIR','MeanSMA','ActivationVolume'};
+                for i=4:32
+                    k=1;
+                    for ii = 1:4
+                        valueChain = {'proc','bold' Values{ii} };
+                        tableColumns{k, 1} = Values{ii};
+                        [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                        k = k+1;
+                    end
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
                 
         end
 
@@ -1484,9 +1511,9 @@ switch action
                 end
             end
         end
-        MeanIL = S_IL/N_IL;
-        MeanIR = S_IR/N_IR;
-        MeanSMA = S_SMA/N_SMA;
+        MeanIL = S_IL/N_IL; mainStruct.(nam).proc.bold.MeanIL = MeanIL;
+        MeanIR = S_IR/N_IR; mainStruct.(nam).proc.bold.MeanIR = MeanIR;
+        MeanSMA = S_SMA/N_SMA; mainStruct.(nam).proc.bold.MeanSMA = MeanSMA;
         %fprintf('IL: %6.4f, IR: %6.4f, SMA:%6.4f,\n', MeanIL, MeanIR, MeanSMA);
         fprintf('%6.4f\t %6.4f\t %6.4f\n', MeanIL, MeanIR, MeanSMA);
 
@@ -1494,7 +1521,7 @@ switch action
 %         for i = 3:25
 %             hp_make('b1/b8',i)
 %         end
-
+        hp_make('save', mainStruct);
 
     case 'MaskMeanSignal'
         % Insula (R ans L) and supplementary motor area (SMA)
@@ -1638,7 +1665,7 @@ switch action
    end
     %special case (29-07) for estimation of the stimuli
     
-    if false
+    if true
         %get from csv file
         estTab = readtable([mainStruct.meta.folder '\_meta\est_MRI.csv']);
         estTab = table2array(estTab);
@@ -1649,8 +1676,9 @@ switch action
             nam = sprintf('sub_%02i', i);
             estTab(isnan(estTab)) = 0;
             if ~isempty(find(estTab(i, :), 1))
-                input{1, 1}{k, 1} = [mainStruct.meta.folder '\' nam '\derived\res\con_0001.nii']; k = k+1;
+                input{1, 1}{k, 1} = [mainStruct.meta.folder '\' nam '\derived\res\con_0001.nii']; 
                 regrTab = [regrTab; estTab(i, :)];
+                Temp(k, 1) = mainStruct.(nam).proc.selected_temp;k = k+1;
             end
         end
         input{1, 2} = regrTab(:, 2);
@@ -1942,7 +1970,7 @@ switch action
             timingInfo = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
             startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
             timingInfo(:, 1) = timingInfo(:, 1) - startTime - (12 - mainStruct.(nam).proc.dummy_time);
-            stim_duartion(i,1) = mean(timingInfo(:,2))
+            stim_duartion(i,1) = mean(timingInfo(:,2));
         end
         varargout{1} = stim_duartion;
 
@@ -2032,6 +2060,19 @@ switch action
         end
         hp_make('save', mainStruct);
 
+    case 'setTemperature'
+        %hp_make('setTemperature')
+        mainStruct = hp_make('load');
+        tab = readtable('E:\Alex\fMRS-heatPain\_meta\ResponsesAnalisys.xlsx');
+        for i=1:32
+            nam = sprintf('sub_%02i', i);
+            if isnan(tab.Temp(i))
+                continue;
+            end
+            mainStruct.(nam).proc.selected_temp = tab.Temp(i);
+        end
+         hp_make('save', mainStruct);
+
 end
 end
 
@@ -2080,16 +2121,13 @@ function callSmothing(img)
 end
 
 function makeSameResolution(img1, img2)
-    nrun = 1;
-    jobfile = {'C:\Users\Science\Documents\GitHub\matlab_work\My_scripts\utils\fmri_CoregReslice_job.m'};
-    jobs = repmat(jobfile, 1, nrun);
-    inputs = cell(2, nrun);
-    for crun = 1:nrun
-        inputs{1, crun} = {img1}; % Coregister: Reslice: Image Defining Space - cfg_files
-        inputs{2, crun} = {img2}; % Coregister: Reslice: Images to Reslice - cfg_files
-    end
-    spm('defaults', 'FMRI');
-    spm_jobman('run', jobs, inputs{:});
+    matlabbatch{1}.spm.spatial.coreg.write.ref = {img1};
+    matlabbatch{1}.spm.spatial.coreg.write.source = {img2};
+    matlabbatch{1}.spm.spatial.coreg.write.roptions.interp = 4;
+    matlabbatch{1}.spm.spatial.coreg.write.roptions.wrap = [0 0 0];
+    matlabbatch{1}.spm.spatial.coreg.write.roptions.mask = 0;
+    matlabbatch{1}.spm.spatial.coreg.write.roptions.prefix = 'r';
+    spm_jobman('run',matlabbatch);
 end
 
 function BOLD_beta = countBeta(img_mask, img_beta1, img_beta2)
