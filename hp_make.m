@@ -2032,6 +2032,27 @@ switch action
         end
         hp_make('save', mainStruct);
 
+         case 'EstimateIncreaseTime'
+        %hp_make('EstimateIncreaseTime')
+        mainStruct = hp_make('load');
+        incTimeTemp = zeros(32, 2);
+        for id=4:32
+            
+            nam = sprintf('sub_%02i', id);
+
+            TSAtab = readtable([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
+            temp= TSAtab.Tec_C_;
+            time = TSAtab.Timestamp_msec_;
+
+            time = time/1000;
+            baselineTemp = median(temp(1:1000));
+            maxTemp = quantile(temp,0.9);
+            startInc = find(temp-baselineTemp>baselineTemp*0.05);startInc = time(startInc(1));
+            endInc = find(maxTemp-temp<0);endInc = time(endInc(1));
+            incTimeTemp(id, 1) = endInc - startInc; incTimeTemp(id, 2) = maxTemp;
+        end
+        varargout{1} = incTimeTemp;
+
 end
 end
 

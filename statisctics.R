@@ -56,20 +56,37 @@ dats <- dats %>%
 
 dats <- dats %>% select(-'Value')
 
+dats <- dats[-(which(dats$time %in% "06")),]
+
 #3.1 QA check for outliers
 # library
 library(ggplot2)
 
 
 # basic scatterplot
-dats %>% filter(condition == 'act', ValueLWH == 'LW') %>% group_by(subNames, Metabolite) %>% mutate(LW_diff=LWH/mean(LWH)) %>%
-ungroup() %>% group_by(time, Metabolite) %>% summarise(average_LW = mean(LW_diff, na.rm = TRUE)) %>%
-ggplot(aes(x=time, y=average_LW, colour = Metabolite)) + 
-  geom_point() +
-  geom_line()
+plotDats <- dats %>% filter(ValueLWH == 'LW') %>% group_by(subNames, Metabolite, condition) %>% mutate(LW_diff=LWH/mean(LWH)) %>%
+ungroup() %>% group_by(time, Metabolite, condition) %>% summarise(average_LW = mean(LW_diff, na.rm = TRUE)) 
 
+plotDats %>% pivot_wider(names_from = Metabolite, values_from = average_LW) %>%
+  ggplot(aes(x=time)) + 
+  geom_point(aes(y=Cr, colour = 'coral'), size = 3) +
+  geom_line(aes(y=Cr, colour = 'coral', group = 1)) +
+  geom_point(aes(y=NAA), colour = 'darkcyan', size = 3) +
+  geom_line(aes(y=NAA,colour = 'darkcyan', group = 1)) +
+  facet_wrap(~ condition)
 
-dats <- dats %>% select(-time)
+plotDats <- dats %>% filter(ValueLWH == 'H') %>% group_by(subNames, Metabolite, condition) %>% mutate(LW_diff=LWH/mean(LWH)) %>%
+  ungroup() %>% group_by(time, Metabolite, condition) %>% summarise(average_LW = mean(LW_diff, na.rm = TRUE)) 
+
+plotDats %>% pivot_wider(names_from = Metabolite, values_from = average_LW) %>%
+  ggplot(aes(x=time)) + 
+  geom_point(aes(y=Cr, colour = 'coral'), size = 3) +
+  geom_line(aes(y=Cr, colour = 'coral', group = 1)) +
+  geom_point(aes(y=NAA), colour = 'darkcyan', size = 3) +
+  geom_line(aes(y=NAA,colour = 'darkcyan', group = 1)) +
+  facet_wrap(~ condition)  
+
+# Statistics
 
 df <- data.frame(dats)
 library(afex)
