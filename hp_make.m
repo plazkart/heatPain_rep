@@ -749,12 +749,13 @@ switch action
         nam = sprintf('sub_%02i', id);
 
         time_point_matrix = mainStruct.(nam).proc.tp_matrix;
-
+        
+        dummyTime = mainStruct.(nam).proc.TTLtimes(1) - mainStruct.(nam).proc.startMR;
         ttlTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
             regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_fmrs.xlsx']);
-            task_starts = regressorList(:,1)-ttlTime(1);
+            task_starts = regressorList(:,1)-ttlTime(1);  
             stim_dur = regressorList(:,2);
-        task_starts = task_starts + (mainStruct.(nam).proc.start_dynamic-1)*2;
+        task_starts = task_starts + dummyTime;
 
         MR = 16;
         dt = [0:315*MR*2]/MR;
@@ -782,6 +783,21 @@ switch action
         [bf, p] = spm_hrf(1/16, pars(1:6), 16);
 
         hrf = conv(u, bf);
+
+        %test of hrf
+        if true
+             hrf = hrf(1:length(dt)); quantileHRF_90 = quantile(hrf, 0.9);
+            mrs_timings = [1:315]*2-2;
+            figure(); plot(dt, hrf); hold on;
+            for k=1:6
+                tps = find(time_point_matrix==k);
+                scatter(mrs_timings(tps), ones(size(tps))*quantileHRF_90);
+            end
+            saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\MRS_activation.jpg'],'jpg'); hold off;
+            
+
+        end
+
         TR_samples = [0:315]*2*MR+1;
         hrf_samples=hrf(TR_samples);
         hrf_samples(1)=[];
@@ -1335,6 +1351,8 @@ switch action
                 end
                 resTable = array2table(resTable, 'VariableNames', tableColumns);
                 varargout{1} = resTable;
+
+                writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\fMRI_metrics.csv');
                 
         end
 
