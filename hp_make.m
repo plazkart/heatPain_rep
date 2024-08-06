@@ -614,24 +614,33 @@ switch action
                     else
                         sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '.SDAT'], 1);
                     end
-                    sp.flags.averaged = 1;
-                    sp.dims.averages = 0;
-                    sp = op_autophase(sp, 1.8, 3.5, 0);
-                    Cr_fwhm = op_getLW(sp, 2.8, 3.1);
-                    NAA_fwhm = op_getLW(sp, 1.8, 2.15);
-
-                    Cr_H = op_getPeakHeight(sp, 2.8, 3.1);
-                    NAA_H = op_getPeakHeight(sp, 1.8, 2.15);
+                    %% assess linewidth
+                    Estimates = MRSassessment(sp);
+                    mainStruct.(nam).proc.(condition).(sp_nam) = Estimates;
                     if bc
                         mainStruct.(nam).proc.(condition).(sp_nam).LWCr_bc = Cr_fwhm;
                         mainStruct.(nam).proc.(condition).(sp_nam).LWNAA_bc = NAA_fwhm;
                     else
-                        mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
-                        mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
-                        mainStruct.(nam).proc.(condition).(sp_nam).HCr = Cr_H;
-                        mainStruct.(nam).proc.(condition).(sp_nam).HNAA = NAA_H;
+%                         mainStruct.(nam).proc.(condition).(sp_nam).LWCr = Cr_fwhm;
+%                         mainStruct.(nam).proc.(condition).(sp_nam).LWNAA = NAA_fwhm;
+%                         mainStruct.(nam).proc.(condition).(sp_nam).HCr = Cr_H;
+%                         mainStruct.(nam).proc.(condition).(sp_nam).HNAA = NAA_H;
                     end
 
+                end
+            case 3
+                %temporally smoothed_data
+                for i=1:6
+                    sp_nam = sprintf('tp_%02i', i);
+                    if bc
+                        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '_bc.SDAT'], 1);
+                    else
+                        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' sp_nam '_' condition '_sm.SDAT'], 1);
+                    end
+                    %% assess linewidth
+                    Estimates = MRSassessment(sp);
+                    sp_nam = sprintf('tp_%02i_sm', i);
+                    mainStruct.(nam).proc.(condition).(sp_nam) = Estimates;
                 end
             case 0
                 if mainStruct.(nam).proc_check.all.(condition)<1
@@ -2161,6 +2170,20 @@ switch action
          hp_make('save', mainStruct);
 
 end
+end
+
+function Estimates = MRSassessment(sp)
+sp.flags.averaged = 1;
+sp.dims.averages = 0;
+sp = op_autophase(sp, 1.8, 3.5, 0);
+
+Estimates.Cr_fwhm = op_getLW(sp, 2.8, 3.1);
+Estimates.NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+
+Estimates.Cr_H = op_getPeakHeight(sp, 2.8, 3.1);
+Estimates.NAA_H = op_getPeakHeight(sp, 1.8, 2.15);
+
+
 end
 
 function startTime = getTTLtime(xlsfile)
