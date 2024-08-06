@@ -544,6 +544,46 @@ switch action
 
                end
 
+           case 3
+               %process as interleaved time points
+               %added time smoothing
+               if isfield(mainStruct.(nam).proc, 'tp_matrix')
+                   k = max(mainStruct.(nam).proc.tp_matrix); % maximal index of the time point
+               else
+                   error("There is no time points matrix for data grouping. Make 'mrs_task_file' case");
+               end
+               sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], 1);
+               %make smoothin data
+               sp.fids = 0.7*sp.fids + 0.15*circshift(sp.fids, 1, 1)+0.15*circshift(sp.fids, -1, 1);
+               sp.specs = 0.7*sp.specs + 0.15*circshift(sp.specs, 1, 1)+0.15*circshift(sp.specs, -1, 1);
+               for i=1:k
+                   time_point_dynamics = [1:315];
+                   time_point_dynamics = time_point_dynamics(mainStruct.(nam).proc.tp_matrix==i);
+                   time_point_dynamics = time_point_dynamics(time_point_dynamics<sp.sz(2));
+                   sp_tp = op_takeaverages(sp, time_point_dynamics);
+                   tp_nam = sprintf('tp_%02i', i);
+                   [mainStruct, sp_out] = hp_make('spectraPreprocessing', sp_tp , mainStruct, id, [tp_nam '_' sp_name]);
+                   %                 [mainStruct, sp_out] = hp_make('spectraPreprocessing', ...
+                   %                 sp_tp , mainStruct, id, [tp_nam '_' sp_name], [4.2 5 1]);
+                   %                 %Made once for sub_11 /19-01-2024
+                   sp_fpa_av_wr = sp_out;
+
+                   % save into the protocol
+                   txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
+                   new_dir = [mainStruct.meta.folder '\' nam '\sp\derived\'];
+                   mkdir(new_dir);
+                   sp_naming = sprintf('%s_%s_sm', nam, [tp_nam '_' sp_name]);
+                   mrs_writeSDAT([new_dir sp_naming '.SDAT'],...
+                       sp_fpa_av_wr.fids);
+                   copyfile([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SPAR'],...
+                       [new_dir sp_naming '.SPAR']);
+                   my_editSPAR([new_dir sp_naming '.SPAR'],{'rows','spec_num_row', 'spec_row_upper_val', 'samples', 'spec_num_col'}, {1,1,1,1024*16, 1024*16});
+                   fprintf( txt_protocol, 'saved in: %s \n', [new_dir sp_naming '.SDAT']);
+                   fclose(txt_protocol);
+               end
+               mainStruct.(nam).proc_check.timepoints_spectra.smoothed = 1;
+               mainStruct = hp_make('save', mainStruct);
+
        
 
 
@@ -801,11 +841,16 @@ switch action
         TR_samples = [0:315]*2*MR+1;
         hrf_samples=hrf(TR_samples);
         hrf_samples(1)=[];
+        %% temporal smoothing
+         hrf_smoothed = 0.7*hrf+0.15*circshift(hrf, 2*MR)+0.15*circshift(hrf, -2*MR);
+         hrf_samples_smoothed=hrf_smoothed(TR_samples);hrf_samples_smoothed(1)=[];
         for i=1:max(time_point_matrix)
             hrf_mean(i) = mean(hrf_samples(time_point_matrix==i));
+            hrf_mean_smoothed(i) = mean(hrf_samples_smoothed(time_point_matrix==i));
         end
 
         mainStruct.(nam).proc.hfr_mrs = hrf_mean;
+        mainStruct.(nam).proc.hfr_mrs_smoothed = hrf_mean_smoothed;
         mainStruct = hp_make('save', mainStruct);
 
     case 'copyData'
@@ -1148,7 +1193,8 @@ switch action
         temp_struct = mainStruct.(nam);
         for i=1:length(valueChain)
             if ~isfield(temp_struct, valueChain{i})
-                error("There is no such value");
+%                 error("There is no such value");
+                return;
             else
                 temp_struct = temp_struct.(valueChain{i});
             end
