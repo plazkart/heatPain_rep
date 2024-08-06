@@ -33,7 +33,8 @@ dats <- dats %>% mutate(subNames = subjectNames)
 row.names(dats) <- subjectNames
 
 #exclusion and pivoting
-excludedSubjects <- c(1:3, 11)
+#excludedSubjects <- c(1:3, 11)
+excludedSubjects <- c(1:3, 11, 4, 5, 6, 8, 19, 20, 32, 22 )
 dats <- dats[-excludedSubjects,]
 
 dats <- dats %>% pivot_longer(cols = "act_tp_01_LWCr":"sham_tp_06_HNAA",
@@ -86,6 +87,17 @@ plotDats %>% pivot_wider(names_from = Metabolite, values_from = average_LW) %>%
   geom_line(aes(y=NAA,colour = 'darkcyan', group = 1)) +
   facet_wrap(~ condition)  
 
+plotDats <- dats %>% filter(ValueLWH == 'LW', Metabolite == 'NAA') %>%
+  select(subNames, time, LWH, condition)
+plotDats$time <- as.numeric(factor(plotDats$time))
+plotDats <- plotDats[-(which(plotDats$subNames %in% "sub_28")),]
+plotDats <- plotDats[-(which(plotDats$subNames %in% "sub_9")),]
+
+plotDats %>% group_by(condition, subNames) %>% mutate(LWH = LWH-mean(LWH)) %>%
+  ggplot(aes(x = time, y = LWH, color = subNames)) +
+  geom_line() +
+  facet_wrap(~condition)
+
 #3.2 Comparison of real MRS linewidthes and theoretically dervied data
 #get LW and H
 dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS.csv')
@@ -94,7 +106,7 @@ dats2 <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\
 subjectNames <- paste0("sub_", 1:32)
 dats2 <- dats2 %>% mutate(subNames = subjectNames) 
 
-excludedSubjects <- c(1:3, 11, 4, 5, 6, 8, 19, 20, 32 )
+excludedSubjects <- c(1:3, 11, 4, 5, 6, 8, 19, 20, 32, 22 )
 
 dats2 <- dats2[-excludedSubjects,]
 dats2 <- dats2 %>% select(-"X06")

@@ -431,7 +431,7 @@ switch action
         end
 
             
-
+  
 
 % MRS processing
         
@@ -1347,21 +1347,24 @@ switch action
                
             case 'BOLD_MRS'
                 % only linewidthes in both cases for time points
+                % [~, resTable] = hp_make('importResultsData2', 'BOLD_MRS');
                 Values = {'LWCr' ,'LWNAA', 'HCr', 'HNAA'};
                 for i=4:32
                     k=1;
                     for ii=1:length(Values)
                         for ij = 1:6
-                            sp_nam = sprintf('tp_%02i', ij);
+                            %Choose case carefully here
+%                             sp_nam = sprintf('tp_%02i', ij); %intial data
+                            sp_nam = sprintf('tp_%02i_sm', ij);%temporally smoothed data
                         
                             valueChain = {'proc','act', sp_nam, Values{ii} };
                             tableColumns{k, 1} = ['act_' sp_nam '_' Values{ii}];
                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
                             k=k+1;
-                            valueChain = {'proc','sham', sp_nam, Values{ii}};
-                            tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
-                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
-                            k=k+1;
+%                             valueChain = {'proc','sham', sp_nam, Values{ii}};
+%                             tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
+%                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+%                             k=k+1;
                         end
                     end
                 end
