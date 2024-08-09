@@ -67,6 +67,22 @@ library(ggplot2)
 
 
 # basic scatterplot
+plotDats <- dats %>% filter(ValueLWH == 'LW') %>% 
+  group_by(subNames, condition, Metabolite) %>% 
+  mutate(LW_diff=LWH/mean(LWH)) %>%
+  ungroup() %>% group_by(time, Metabolite, condition) %>% 
+  summarise(average_LW = mean(LW_diff, na.rm = TRUE))
+plotDats %>% pivot_wider(names_from = Metabolite, values_from = average_LW) %>%
+  ggplot(aes(x=time)) + 
+  geom_point(aes(y=Cr, colour = 'coral'), size = 3) +
+  geom_line(aes(y=Cr, colour = 'coral', group = 1)) +
+  geom_point(aes(y=NAA), colour = 'darkcyan', size = 3) +
+  geom_line(aes(y=NAA,colour = 'darkcyan', group = 1)) +
+  scale_fill_discrete(name = "Value", labels = c("LW", "H")) +
+  facet_wrap(~ condition)
+
+
+
 plotDats <- dats %>% filter(Metabolite == 'Cr') %>% 
   group_by(subNames, condition, ValueLWH) %>% 
   mutate(LW_diff=LWH/mean(LWH)) %>%
