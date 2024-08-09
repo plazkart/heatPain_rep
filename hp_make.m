@@ -554,8 +554,8 @@ switch action
                end
                sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], 1);
                %make smoothin data
-               sp.fids = 0.7*sp.fids + 0.15*circshift(sp.fids, 1, 1)+0.15*circshift(sp.fids, -1, 1);
-               sp.specs = 0.7*sp.specs + 0.15*circshift(sp.specs, 1, 1)+0.15*circshift(sp.specs, -1, 1);
+               sp.fids = 0.5*sp.fids + 0.25*circshift(sp.fids, 1, 1)+0.25*circshift(sp.fids, -1, 1);
+               sp.specs = 0.5*sp.specs + 0.25*circshift(sp.specs, 1, 1)+0.25*circshift(sp.specs, -1, 1);
                for i=1:k
                    time_point_dynamics = [1:315];
                    time_point_dynamics = time_point_dynamics(mainStruct.(nam).proc.tp_matrix==i);
@@ -851,7 +851,7 @@ switch action
         hrf_samples=hrf(TR_samples);
         hrf_samples(1)=[];
         %% temporal smoothing
-         hrf_smoothed = 0.7*hrf+0.15*circshift(hrf, 2*MR)+0.15*circshift(hrf, -2*MR);
+         hrf_smoothed = 0.5*hrf+0.25*circshift(hrf, 2*MR)+0.25*circshift(hrf, -2*MR);
          hrf_samples_smoothed=hrf_smoothed(TR_samples);hrf_samples_smoothed(1)=[];
         for i=1:max(time_point_matrix)
             hrf_mean(i) = mean(hrf_samples(time_point_matrix==i));
@@ -900,7 +900,10 @@ switch action
                 if mainStruct.(nam).proc_check.timepoints_spectra.sham<1
                     error('There is no time points divided data YET');
                 end
+                %in case of initial data
                 copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*']);
+                %in case of smoothed data
+                copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*sm*']);
                 for i = 1:length(copyFiles)
                     if ~contains(copyFiles(i).name, 'bc')
                         copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
@@ -998,6 +1001,25 @@ switch action
                     copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
                     
                     tp_nam = sprintf('p%i', tp_num);
+                    mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
+                    mainStruct.(nam).proc.(mod_case).(tp_nam).path = [mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir '\' fils(i).name];
+
+
+                    mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, tp_nam);
+                end
+                case 3
+                    %for smoothed data
+                for i=1:length(fils)
+                    temp = split(fils(i).folder, '_');
+                    tp_num = str2num(temp{end-2});
+                    mod_case = temp{end-1};
+
+                    out_dir = sprintf('tp_%02i_%s_sm',tp_num, mod_case);
+                    mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
+                    copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
+                    copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
+                    
+                    tp_nam = sprintf('tp_%02i_sm', tp_num);
                     mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
                     mainStruct.(nam).proc.(mod_case).(tp_nam).path = [mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir '\' fils(i).name];
 
@@ -2177,11 +2199,11 @@ sp.flags.averaged = 1;
 sp.dims.averages = 0;
 sp = op_autophase(sp, 1.8, 3.5, 0);
 
-Estimates.Cr_fwhm = op_getLW(sp, 2.8, 3.1);
-Estimates.NAA_fwhm = op_getLW(sp, 1.8, 2.15);
+Estimates.LWCr = op_getLW(sp, 2.8, 3.1);
+Estimates.LWNAA = op_getLW(sp, 1.8, 2.15);
 
-Estimates.Cr_H = op_getPeakHeight(sp, 2.8, 3.1);
-Estimates.NAA_H = op_getPeakHeight(sp, 1.8, 2.15);
+Estimates.HCr = op_getPeakHeight(sp, 2.8, 3.1);
+Estimates.HNAA = op_getPeakHeight(sp, 1.8, 2.15);
 
 
 end
