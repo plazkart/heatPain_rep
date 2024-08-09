@@ -27,6 +27,8 @@ library(tidyr)
 
 dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS.csv')
 columnsActSham <- cbind(paste0("act", "_tp_0", 1:6, "_LWCr"), paste0("sham", "_tp_0", 1:6, "_LWCr"))
+#for temporally smoothed data
+columnsActSham <- cbind(paste0("act", "_tp_0", 1:6, "_sm_LWCr"), paste0("sham", "_tp_0", 1:6, "_sm_HNAA"))
 #dats <- dats[, columnsActSham]
 subjectNames <- paste0("sub_", 1:32)
 dats <- dats %>% mutate(subNames = subjectNames) 
@@ -65,8 +67,20 @@ library(ggplot2)
 
 
 # basic scatterplot
-plotDats <- dats %>% filter(ValueLWH == 'LW') %>% group_by(subNames, Metabolite, condition) %>% mutate(LW_diff=LWH/mean(LWH)) %>%
-ungroup() %>% group_by(time, Metabolite, condition) %>% summarise(average_LW = mean(LW_diff, na.rm = TRUE)) 
+plotDats <- dats %>% filter(Metabolite == 'Cr') %>% 
+  group_by(subNames, condition, ValueLWH) %>% 
+  mutate(LW_diff=LWH/mean(LWH)) %>%
+ungroup() %>% group_by(time, ValueLWH, condition) %>% 
+  summarise(average_LW = mean(LW_diff, na.rm = TRUE)) 
+
+plotDats %>% pivot_wider(names_from = ValueLWH, values_from = average_LW) %>%
+  ggplot(aes(x=time)) + 
+  geom_point(aes(y=LW, colour = 'coral'), size = 3) +
+  geom_line(aes(y=LW, colour = 'coral', group = 1)) +
+  geom_point(aes(y=H), colour = 'darkcyan', size = 3) +
+  geom_line(aes(y=H,colour = 'darkcyan', group = 1)) +
+  scale_fill_discrete(name = "Value", labels = c("LW", "H")) +
+  facet_wrap(~ condition)
 
 plotDats %>% pivot_wider(names_from = Metabolite, values_from = average_LW) %>%
   ggplot(aes(x=time)) + 
