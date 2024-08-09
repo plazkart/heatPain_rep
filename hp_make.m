@@ -588,10 +588,11 @@ switch action
 
 
            
-        end
+       end
+
     
-    case 'LinewidthAssessment'
-        %use as hp_make('LinewidthAssessment', id, condition, tp, bc)
+    case 'QA_MRS_Assessment'
+        %use as hp_make('QA_MRS_Assessment', id, condition, tp, bc)
         % assess FWHM of Cr and NAA signals
         mainStruct = hp_make('load');
         id = varargin{1};
@@ -2204,6 +2205,8 @@ Estimates.LWNAA = op_getLW(sp, 1.8, 2.15);
 
 Estimates.HCr = op_getPeakHeight(sp, 2.8, 3.1);
 Estimates.HNAA = op_getPeakHeight(sp, 1.8, 2.15);
+
+Estimates.SNR_NAA = op_getSNR(sp, 1.8, 2.15);
 
 
 end
