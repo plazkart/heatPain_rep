@@ -1108,12 +1108,16 @@ switch action
 %% MRS quality control procedures
 % draw MR-spectra
     case 'coord_drawSpectra'
-        %use as hp_make('coord_drawSpectra', id, condition, tp_number)
+        %use as hp_make('coord_drawSpectra', id, condition, tp_case)
         mainStruct = hp_make('load');
         condition = varargin{2};
+        if length(varargin)>2
+            tp_case = varargin{3};
+        end
         id = varargin{1};
         nam = sprintf('sub_%02i', id);
-
+switch tp_case
+    case 1
         if mainStruct.(nam).proc_check.all.(condition)>0
             coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\all_' condition '\coord'];
             sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
@@ -1122,7 +1126,21 @@ switch action
             set(gca,'Xdir','reverse');
             exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' nam '_' condition '.png'], 'BackgroundColor', 'white');
         end
-
+    case 3
+        %smoothed dynamics
+        figure();
+        for ii = 1:6
+            sp_nam = sprintf('tp_%02i_%s_sm', ii, condition);
+            coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\' sp_nam '\coord'];
+            sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
+            fit_figure = io_readlcmcoord_getBackground(coordPath,'fit');
+            maxValue = max(abs(fit_figure.specs));
+            plot(sp_figure.ppm, [sp_figure.specs+maxValue*1.1*ii, fit_figure.specs+maxValue*1.1*ii]); hold on
+            set(gca,'Xdir','reverse');
+            
+        end
+%         exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' sp_nam '.png'], 'BackgroundColor', 'white');
+end
 
     case 'spVoxelPlacement'
         % use as hp_make('spVoxelPlacement', id, condition)
