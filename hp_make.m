@@ -1640,6 +1640,32 @@ end
 %             hp_make('b1/b8',i)
 %         end
         hp_make('save', mainStruct);
+% Analysis of QA numerical data
+    case 'MRS_QA'
+        % [~, QA_desicion] = hp_make('MRS_QA')
+        
+        mainStruct = hp_make('load');
+
+        qaTab = zeros(32, 5);
+        for i = 4:32
+            nam = sprintf('sub_%02i', i);
+            for tp_i = 1:6
+                tp_nam = sprintf('tp_%02i_sm', tp_i);
+                qaTab(i, tp_i, 1) = mainStruct.(nam).proc.act.(tp_nam).SNR_NAA;
+                qaTab(i, tp_i, 2) = mainStruct.(nam).proc.act.(tp_nam).NAAerr;
+                qaTab(i, tp_i, 3) = mainStruct.(nam).proc.act.(tp_nam).Crerr;
+                qaTab(i, tp_i, 4) = mainStruct.(nam).proc.act.(tp_nam).Glxerr;
+                qaTab(i, tp_i, 5) = mainStruct.(nam).proc.act.(tp_nam).LWNAA;
+            end
+        end
+        filterTable = zeros(32, 5);
+        filterTable(:, 1) = sum(qaTab(:, :, 1) < 10, 2);
+        filterTable(:, 2) = sum(qaTab(:, :, 2) > 6, 2);
+        filterTable(:, 3) = sum(qaTab(:, :, 3) > 6, 2);
+        filterTable(:, 4) = sum(qaTab(:, :, 4) > 15, 2);
+        filterTable(:, 5) = sum(qaTab(:, :, 5) > 8, 2);
+        QA_desicion = sum(filterTable >2, 2)>0;
+        varargout{1} = QA_desicion;
 
     case 'MaskMeanSignal'
         % Insula (R ans L) and supplementary motor area (SMA)
