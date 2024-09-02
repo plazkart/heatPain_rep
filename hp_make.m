@@ -634,13 +634,16 @@ switch action
                 for i=1:6
                     sp_nam = sprintf('tp_%02i', i);
                     if bc
-                        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' sp_nam '_' condition '_bc.SDAT'], 1);
+                        sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' sp_nam '_' condition '_sm_bc.SDAT'], 1);
                     else
                         sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' sp_nam '_' condition '_sm.SDAT'], 1);
                     end
                     %% assess linewidth
                     Estimates = MRSassessment(sp);
                     sp_nam = sprintf('tp_%02i_sm', i);
+                    if bc
+                        sp_nam = [sp_nam '_bc'];
+                    end
                     mainStruct.(nam).proc.(condition).(sp_nam) = Estimates;
                 end
             case 0
@@ -902,13 +905,15 @@ switch action
                     error('There is no time points divided data YET');
                 end
                 %in case of initial data
-                copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*']);
-                %in case of smoothed data
-                copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*sm*']);
+%                 copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*']);
+%                 %in case of smoothed data
+%                 copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*sm*']);
+                %in case of smoothed data and bOLD-corrected
+                copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*sm*bc*']);
                 for i = 1:length(copyFiles)
-                    if ~contains(copyFiles(i).name, 'bc')
+%                     if ~contains(copyFiles(i).name, 'bc')
                         copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
-                    end
+%                     end
                 end
                 hp_make('copyData', id,  out_path, 'makeProcessingList')
             case 'tp_mrs_bc'
@@ -1012,15 +1017,26 @@ switch action
                     %for smoothed data
                 for i=1:length(fils)
                     temp = split(fils(i).folder, '_');
-                    tp_num = str2num(temp{end-2});
-                    mod_case = temp{end-1};
-
-                    out_dir = sprintf('tp_%02i_%s_sm',tp_num, mod_case);
+                    [tp_num, mod_case, smoothedQ, boldcorrecedQ ] = parseType(temp)
+                    if smoothedQ
+                        out_dir = sprintf('tp_%02i_%s_sm',tp_num, mod_case);
+                        if boldcorrecedQ
+                            out_dir = sprintf('tp_%02i_%s_sm_bc',tp_num, mod_case);
+                        end
+                    else
+                        out_dir = sprintf('tp_%02i_%s',tp_num, mod_case);
+                    end
                     mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
                     copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
                     copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
-                    
-                    tp_nam = sprintf('tp_%02i_sm', tp_num);
+                    if smoothedQ
+                        tp_nam = sprintf('tp_%02i_sm', tp_num);
+                        if boldcorrecedQ
+                            tp_nam = sprintf('tp_%02i_sm_bc', tp_num);
+                        end
+                    else
+                        tp_nam = sprintf('tp_%02i', tp_num);
+                    end
                     mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
                     mainStruct.(nam).proc.(mod_case).(tp_nam).path = [mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir '\' fils(i).name];
 
@@ -1405,17 +1421,18 @@ end
                     for ii=1:length(Values)
                         for ij = 1:6
                             %Choose case carefully here
-                            sp_nam = sprintf('tp_%02i', ij); %intial data
-%                             sp_nam = sprintf('tp_%02i_sm', ij);%temporally smoothed data
+%                             sp_nam = sprintf('tp_%02i', ij); %intial data
+                            sp_nam = sprintf('tp_%02i_sm', ij);%temporally smoothed data
+%                             sp_nam = sprintf('tp_%02i_sm_bc', ij);%temporally smoothed and BOLD-corrected data
                         
                             valueChain = {'proc','act', sp_nam, Values{ii} };
                             tableColumns{k, 1} = ['act_' sp_nam '_' Values{ii}];
                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
                             k=k+1;
-                            valueChain = {'proc','sham', sp_nam, Values{ii}};
-                            tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
-                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
-                            k=k+1;
+%                             valueChain = {'proc','sham', sp_nam, Values{ii}};
+%                             tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
+%                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+%                             k=k+1;
                         end
                     end
                 end
@@ -1423,7 +1440,7 @@ end
                 resTable = array2table(resTable, 'VariableNames', tableColumns);
                 varargout{1} = resTable;
 
-                writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\BOLD_MRS.csv');
+%                 writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\BOLD_MRS.csv');
                 
             case 'BOLD_HRF_mrs'
                 valueChain = {'proc','hfr_mrs'};
@@ -1466,7 +1483,7 @@ end
         id = varargin{1};
         nam = sprintf('sub_%02i', id);
 
-        %Find linewidths
+        %Get linewidth values from meta-strucutre
         for j= 1:6
             tp_nam = sprintf('tp_%02i', j);
             LW_met(j, 1) = mainStruct.(nam).proc.act.(tp_nam).LWCr;
@@ -1474,42 +1491,29 @@ end
         end
         %find difference between TP LW and mean LW
         LW_Cr_n = LW_met-mean(LW_met); LW_NAA_n = LW_NAA-mean(LW_NAA);
-        %make correction according to the difference
+        %make correction according to the difference in LW NAA values
         %         for i=1:mainStruct.meta.subNumbers
         nam = sprintf('sub_%02i', id);
-        if mainStruct.(nam).data_check.sp>0
-            txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
-            fprintf(txt_protocol, '------ \n bold correction Cr signal: case - %s \n', nam);
-            for ii=1:6
-                tp_nam = sprintf('tp_%02i', ii);
-                sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' tp_nam '_act.SDAT'];
-                sp = io_loadspec_sdat(sp_name, 1);
-                sp = op_filter(sp, -LW_Cr_n(ii, 1));
-                new_sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' tp_nam '_act_bc.SDAT'];
-                mrs_writeSDAT(new_sp_name, sp.fids);
-                copyfile([sp_name(1:end-4) 'SPAR'], [new_sp_name(1:end-4) 'SPAR']);
-                
-                %write LW-changes into the protocol of mrs processing
-                fprintf(txt_protocol, '%s \n', datetime("today"));
-                fprintf(txt_protocol, 'linewidth change for tp_%02i: %f \n', ii, -LW_Cr_n(ii, 1));
-                
-                
+        txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'a');
+        fprintf(txt_protocol, '------ \n bold correction NAA signal: case - %s \n', nam);
+        for ii=1:6
+            tp_nam = sprintf('tp_%02i', ii);
+            sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' tp_nam '_act_sm.SDAT'];
+            sp = io_loadspec_sdat(sp_name, 1);
+            sp = op_filter(sp, -LW_NAA_n(ii, 1));
+            new_sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' tp_nam '_act_sm_bc.SDAT'];
+            mrs_writeSDAT(new_sp_name, sp.fids);
+            copyfile([sp_name(1:end-4) 'SPAR'], [new_sp_name(1:end-4) 'SPAR']);
 
-            end
-            % check new linewidth
-            fclose(txt_protocol);
-            hp_make('LinewidthAssessment', id, 'act', 1, 1);
-            mainStruct = hp_make('load');
-            for j= 1:6
-                tp_nam = sprintf('tp_%02i', j);
-                LW_met_bc(j, 1) = mainStruct.(nam).proc.act.(tp_nam).LWCr_bc;
-                LW_NAA_bc(j, 1) = mainStruct.(nam).proc.act.(tp_nam).LWNAA_bc;
-            end
-            plot(1:6, [LW_met, LW_met_bc]);
-            mainStruct.(nam).proc_check.bold_correction = 1;
-            mainStruct = hp_make('save', mainStruct);
-            
+            %write LW-changes into the protocol of mrs processing
+            fprintf(txt_protocol, '%s \n', datetime("today"));
+            fprintf(txt_protocol, 'linewidth change for tp_%02i_sm: %f \n', ii, -LW_NAA_n(ii, 1));
+
+
+
         end
+
+
                    
 
 
@@ -1640,6 +1644,32 @@ end
 %             hp_make('b1/b8',i)
 %         end
         hp_make('save', mainStruct);
+% Analysis of QA numerical data
+    case 'MRS_QA'
+        % [~, QA_desicion] = hp_make('MRS_QA')
+        
+        mainStruct = hp_make('load');
+
+        qaTab = zeros(32, 5);
+        for i = 4:32
+            nam = sprintf('sub_%02i', i);
+            for tp_i = 1:6
+                tp_nam = sprintf('tp_%02i_sm', tp_i);
+                qaTab(i, tp_i, 1) = mainStruct.(nam).proc.act.(tp_nam).SNR_NAA;
+                qaTab(i, tp_i, 2) = mainStruct.(nam).proc.act.(tp_nam).NAAerr;
+                qaTab(i, tp_i, 3) = mainStruct.(nam).proc.act.(tp_nam).Crerr;
+                qaTab(i, tp_i, 4) = mainStruct.(nam).proc.act.(tp_nam).Glxerr;
+                qaTab(i, tp_i, 5) = mainStruct.(nam).proc.act.(tp_nam).LWNAA;
+            end
+        end
+        filterTable = zeros(32, 5);
+        filterTable(:, 1) = sum(qaTab(:, :, 1) < 10, 2);
+        filterTable(:, 2) = sum(qaTab(:, :, 2) > 6, 2);
+        filterTable(:, 3) = sum(qaTab(:, :, 3) > 6, 2);
+        filterTable(:, 4) = sum(qaTab(:, :, 4) > 15, 2);
+        filterTable(:, 5) = sum(qaTab(:, :, 5) > 8, 2);
+        QA_desicion = sum(filterTable >2, 2)>0;
+        varargout{1} = QA_desicion;
 
     case 'MaskMeanSignal'
         % Insula (R ans L) and supplementary motor area (SMA)
@@ -2532,4 +2562,21 @@ matlabbatch{4}.spm.stats.results.export{1}.ps = true;
 matlabbatch{4}.spm.stats.results.export{2}.pdf = true;
 
 spm_jobman('run',matlabbatch);
+end
+
+function [dynNum, cond, smoothedQ, boldcorrecedQ ] = parseType(temp)
+smoothedQ = 0;
+boldcorrecedQ = 0
+for i= 4:length(temp)
+    if length(regexp(temp{i},'\d*', 'match')) > 0
+        dynNum = str2num(temp{i});
+        cond = temp{i+1};
+    end
+    if contains(temp{i}, 'sm')
+        smoothedQ = 1;
+    end
+    if contains(temp{i}, 'bc')
+        boldcorrecedQ = 1;
+    end
+end
 end
