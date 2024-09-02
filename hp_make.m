@@ -1134,12 +1134,12 @@ switch tp_case
             coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\' sp_nam '\coord'];
             sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
             fit_figure = io_readlcmcoord_getBackground(coordPath,'fit');
-            maxValue = max(abs(fit_figure.specs));
-            plot(sp_figure.ppm, [sp_figure.specs+maxValue*1.1*ii, fit_figure.specs+maxValue*1.1*ii]); hold on
+            maxValue = max(abs(fit_figure.specs)); BASELINE = quantile(fit_figure.specs, 0.5);
+            plot(sp_figure.ppm, [sp_figure.specs+maxValue*1.1*ii-BASELINE, fit_figure.specs+maxValue*1.1*ii-BASELINE]); hold on
             set(gca,'Xdir','reverse');
             
         end
-%         exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' sp_nam '.png'], 'BackgroundColor', 'white');
+         exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' nam '_tp_sm.png'], 'BackgroundColor', 'white');
 end
 
     case 'spVoxelPlacement'
