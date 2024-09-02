@@ -1017,15 +1017,26 @@ switch action
                     %for smoothed data
                 for i=1:length(fils)
                     temp = split(fils(i).folder, '_');
-                    tp_num = str2num(temp{end-2});
-                    mod_case = temp{end-1};
-
-                    out_dir = sprintf('tp_%02i_%s_sm',tp_num, mod_case);
+                    [tp_num, mod_case, smoothedQ, boldcorrecedQ ] = parseType(temp)
+                    if smoothedQ
+                        out_dir = sprintf('tp_%02i_%s_sm',tp_num, mod_case);
+                        if boldcorrecedQ
+                            out_dir = sprintf('tp_%02i_%s_sm_bc',tp_num, mod_case);
+                        end
+                    else
+                        out_dir = sprintf('tp_%02i_%s',tp_num, mod_case);
+                    end
                     mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
                     copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
                     copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
-                    
-                    tp_nam = sprintf('tp_%02i_sm', tp_num);
+                    if smoothedQ
+                        tp_nam = sprintf('tp_%02i_sm', tp_num);
+                        if boldcorrecedQ
+                            tp_nam = sprintf('tp_%02i_sm_bc', tp_num);
+                        end
+                    else
+                        tp_nam = sprintf('tp_%02i', tp_num);
+                    end
                     mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
                     mainStruct.(nam).proc.(mod_case).(tp_nam).path = [mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir '\' fils(i).name];
 
@@ -2551,4 +2562,21 @@ matlabbatch{4}.spm.stats.results.export{1}.ps = true;
 matlabbatch{4}.spm.stats.results.export{2}.pdf = true;
 
 spm_jobman('run',matlabbatch);
+end
+
+function [dynNum, cond, smoothedQ, boldcorrecedQ ] = parseType(temp)
+smoothedQ = 0;
+boldcorrecedQ = 0
+for i= 4:length(temp)
+    if length(regexp(temp{i},'\d*', 'match')) > 0
+        dynNum = str2num(temp{i});
+        cond = temp{i+1};
+    end
+    if contains(temp{i}, 'sm')
+        smoothedQ = 1;
+    end
+    if contains(temp{i}, 'bc')
+        boldcorrecedQ = 1;
+    end
+end
 end

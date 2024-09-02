@@ -5,6 +5,12 @@ function [mainStruct, varargout] = hpfmri_batch(action, varargin)
 % hpfmri_batch('parseMRI', mainStruct, id);
 % hpfmri_batch('parseFuncTable', mainStruct, id);
 
+%new pipeline
+% hpfmri_batch('newBIDS');
+% hpfmri_batch('parseBIDS', id)
+% hpfmri_batch('parseXLSX', id);
+% hpfmri_batch('fmri_procBIDS', id, procSteps);
+
 switch action
     case 'init'
         %use this just one time
@@ -65,15 +71,9 @@ switch action
         default_HPfmri;
 
     case 'parseMRI'
-        %use as [mainStruct, varargout] = hpfmri_batch('parseMRI', mainStruct, id)
-        if length(varargin)>0
-            mainStruct = varargin{1};
-            if length(varargin)>1
-                who_id = varargin{2};
-            else
-                who_id = mainStruct.meta.subNumbers;
-            end
-        end
+        %use as [mainStruct, varargout] = hpfmri_batch('parseMRI', id)
+        mainStruct = hpfmri_batch('load');
+        who_id = varargin{1};
         nam = sprintf('sub_%02i', who_id);
         fils_mri = dir([mainStruct.meta.folder mainStruct.(nam).folder '\*.nii']);
         ses = 1;
@@ -108,7 +108,7 @@ switch action
         hpfmri_batch('save', mainStruct);
 
     case 'parseFuncTable'
-        %use as mainStruct = hpfmri_batch('parseFuncTable', mainStruct, id);
+        %use as mainStruct = hpfmri_batch('parseFuncTable', id);
         mainStruct = hpfmri_batch('load');
         if length(varargin)>0
 %                         mainStruct = varargin{1};
@@ -146,44 +146,204 @@ switch action
         hpfmri_batch('save', mainStruct);
 
 
-        case 'fmri_proc'
-        % use it as hpfmri_batch('fmri_proc', id, mainStruct, procSteps); mainStruct - if
+       
+
+        %% Hereby all scripts are mado for processing in BIDSy-style
+        case 'initAsBIDS'
+        %use this just one time
+        mainStruct = struct();
+        mainStruct.meta.folder = 'E:\Alex\fmri_thermal';
+        mainStruct.meta.bids_folder = [mainStruct.meta.folder '\_bids'];
+
+        mainStruct.meta.subNumbers = 0;
+        mainStruct.meta.date = datetime("today");
+        
+
+        mkdir([mainStruct.meta.folder '\_bids']);
+        mkdir([mainStruct.meta.folder '\_bids\sourcedir']);
+        mkdir([mainStruct.meta.folder '\_bids\derivatives']);
+        mkdir([mainStruct.meta.folder '\_bids\derivatives\spm']);
+        
+        fil = fopen([mainStruct.meta.folder '\_bids\.bidsignore'], 'w');
+        fclose(fil);
+        fil = fopen([mainStruct.meta.folder '\_bids\README'], 'w');
+        fclose(fil);
+
+        mainStruct.meta.JSONstruct.Name = 'fMRI of thermal pain';
+        mainStruct.meta.JSONstruct.BIDSVersion = '';
+        mainStruct.meta.JSONstruct.License = '';
+        mainStruct.meta.JSONstruct.Authors = {'A. Yakovlev', 'M. Ublinskyi', 'O. Bozhko', 'T. Akhadov'};
+        mainStruct.meta.JSONstruct.HowToAcknowledge = ''; 
+        mainStruct.meta.JSONstruct.Funding = '';
+        mainStruct.meta.JSONstruct.DatasetDOI = '';
+        txt = jsonencode(mainStruct.meta.JSONstruct);
+        fil = fopen([mainStruct.meta.folder '\_bids\dataset_description.json'], 'w');
+        fprintf(fil, '%s', txt);
+        fclose(fil);
+        save([mainStruct.meta.folder '\_meta\structMetaBIDS.mat'], 'mainStruct');
+
+        case 'saveBIDS'
+            %use as [mainStruct, varargout] = hpfmri_batch('saveBIDS', mainStruct)
+            if length(varargin)>0
+                mainStruct = varargin{1};
+            end
+            mainStruct.meta.date = datetime("today");
+            save([mainStruct.meta.folder '\_meta\structMetaBIDS.mat'], 'mainStruct');
+
+
+        case 'loadBIDS'
+            % use as mainStruct = hpfmri_batch('loadBIDS');
+            default_HPfmri;
+            load([mainStruct.meta.folder '\_meta\structMetaBIDS.mat']);
+            varargout{1} = mainStruct;
+
+        case 'newBIDS'
+            % use as mainStruct = hpfmri_batch('newBIDS');
+            mainStruct = hpfmri_batch('loadBIDS');
+            who_id = mainStruct.meta.subNumbers+1;
+        nam = sprintf('sub_%02i', who_id);
+        BIDSnam = sprintf('sub-%02i', who_id);
+
+        mainStruct.(nam).id = mainStruct.meta.subNumbers+1;
+        mainStruct.(nam).nam = [];
+        mainStruct.(nam).date = datetime('today');
+        mainStruct.(nam).data_check.sp = 0; %0 - no info, 1 - found, 2 - not found
+        mainStruct.(nam).data_check.t1 = 0;
+        mainStruct.(nam).data_check.fmri = 0;
+        mainStruct.(nam).data_check.t2check = 0;
+        mainStruct.(nam).folder = ['\' BIDSnam];
+
+        mainStruct.(nam).proc.start_dynamic = 0;
+        mainStruct.(nam).proc.tp_matrix = [];
+        mainStruct.(nam).proc_check.tp_matrix = 0;
+        mainStruct.(nam).proc.dummy_time = 12;
+        
+        mainStruct.meta.subNumbers = mainStruct.meta.subNumbers+1;
+        
+        mkdir([mainStruct.meta.folder '\_bids\' mainStruct.(nam).folder]);
+        mkdir([mainStruct.meta.folder '\_bids\sourcedir\' mainStruct.(nam).folder]);
+%         mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\meta']);
+%         txt_protocol = fopen([mainStruct.meta.folder mainStruct.(nam).folder '\meta\log.txt'], 'w');
+%         fprintf(txt_protocol, 'Data processing steps log-file. \n Subject: %s \n Date: %s \n', nam, datetime("today"));
+%         fclose(txt_protocol);
+
+        hpfmri_batch('saveBIDS', mainStruct);
+
+    case 'parseBIDS'
+        %use as [mainStruct, varargout] = hpfmri_batch('parseBIDS', id)
+        mainStruct = hpfmri_batch('loadBIDS');
+        id = varargin{1};
+        
+        nam = sprintf('sub_%02i', id);
+        BIDSnam = sprintf('sub-%02i', id);
+        sourceDIR = [mainStruct.meta.folder '\_bids\sourcedir\'  BIDSnam];
+
+        %looking for mri-files
+        fils = dir([sourceDIR '\*.nii']);
+        if ~isempty(fils)
+            mkdir([mainStruct.meta.bids_folder mainStruct.(nam).folder '\anat'])
+            mkdir([mainStruct.meta.bids_folder mainStruct.(nam).folder '\func'])
+            %             mkdir([mainStruct.meta.folder mainStruct.meta.bids_folder mainStruct.(nam).folder '\derived'])
+            %first get info about converted files then copy as needed
+            mriFiles = struct('img', [], 'type', []);img_i = 1;
+            for i=1:length(fils)
+                modalityI = regexp( fils(i).name ,'T1W','match');
+                if ~isempty(modalityI)
+                    mriFiles(img_i).img = [fils(i).folder '\' fils(i).name];
+                    mriFiles(img_i).type = 'T1w'; img_i = img_i + 1;
+                end
+                modalityI = regexp( fils(i).name ,'EPI','match');
+                if ~isempty(modalityI)
+                    mriFiles(img_i).img = [fils(i).folder '\' fils(i).name];
+                    mriFiles(img_i).type = 'EPI'; img_i = img_i + 1; 
+                end
+            end
+            runNum = 1;
+            for i =1:length(mriFiles)
+                if contains(mriFiles(i).type, 'T1w')
+                    copyfile(mriFiles(i).img, [mainStruct.meta.bids_folder mainStruct.(nam).folder '\anat\' BIDSnam '_T1w.nii'])
+                    copyfile([mriFiles(i).img(1:end-3) 'json' ], [mainStruct.meta.bids_folder mainStruct.(nam).folder '\anat\' BIDSnam '_T1w.json'])
+                    mainStruct.(nam).data_check.t1 = 1;
+                end
+                if contains(mriFiles(i).type, 'EPI')
+                    runNam = sprintf('run-%02i', runNum); 
+                    copyfile(mriFiles(i).img, [mainStruct.meta.bids_folder mainStruct.(nam).folder '\func\' BIDSnam '_task-heatpain_' runNam '_bold.nii'])
+                    copyfile([mriFiles(i).img(1:end-3) 'json' ], [mainStruct.meta.bids_folder mainStruct.(nam).folder '\func\' BIDSnam '_task-heatpain_' runNam '_bold.json'])
+                    mainStruct.(nam).data_check.EPI = runNum; runNum = runNum +1;
+                end
+            end
+        end
+        hpfmri_batch('saveBIDS', mainStruct);
+
+    case 'parseXLSX'
+        %use as [mainStruct, varargout] = hpfmri_batch('parseXLSX', id)
+         %looking for xlsx-files
+         mainStruct = hpfmri_batch('loadBIDS');
+        
+        id = varargin{1};
+        nam = sprintf('sub_%02i', id);
+        BIDSnam = sprintf('sub-%02i', id);
+        sourceDIR = [mainStruct.meta.folder '\_bids\sourcedir\'  BIDSnam];
+
+        fils = dir([sourceDIR '\*.xlsx']);
+        for i=1:length(fils)
+            releasedTime(i, 1) = fils(i).datenum;
+        end
+        [~, Idxs] = sort(releasedTime);
+        k = 1;
+        for i=1:length(Idxs)
+            if fils(Idxs(i)).bytes > 200000
+                reggr = heatPain_makeRegressor([fils(Idxs(i)).folder '\' fils(Idxs(i)).name]);
+                startTime = getTTLtime([fils(Idxs(i)).folder '\' fils(Idxs(i)).name]);
+                reggr(:, 1) = reggr(:, 1) - startTime(1);
+                runNam = sprintf('run-%02i', k); 
+                reggr = array2table(reggr,"VariableNames",{'onset', 'duration'});
+                writetable(reggr, [mainStruct.meta.bids_folder mainStruct.(nam).folder '\func\' BIDSnam '_task-heatpain_' runNam '_events.tsv'],...
+                    'Delimiter','tab', 'FileType','text');
+                k = k+1;
+            end
+        end
+
+         case 'fmri_procBIDS'
+        % use it as hpfmri_batch('fmri_procBIDS', id, procSteps); mainStruct - if
         % needed
+        mainStruct = hpfmri_batch('loadBIDS');
         if length(varargin)>0
             id = varargin{1};
-            if length(varargin)>1
-                mainStruct = varargin{2};
-            else
-                mainStruct = hp_make('load');
-            end
         else
             error('There no subject name to process');
         end
         nam = sprintf('sub_%02i', id);
+        BIDSnam = sprintf('sub-%02i', id);
+        sesNum = mainStruct.(nam).data_check.EPI;
+
+        %create folder to store processed data
+        mkdir([mainStruct.meta.bids_folder 'derivatives\spm\' BIDSnam]);
+        derivativesDir = [mainStruct.meta.bids_folder 'derivatives\spm\' BIDSnam];
 
         % rewrite as needed 
-
-        if mainStruct.(nam).data_check.fmri > 0
-            for i=1:length(mainStruct.(nam).proc.fmri)
-                fmri_img = spm_vol(mainStruct.(nam).proc.fmri{i});
-                NSA(i) = length(fmri_img);
-                for ii=1:NSA
-                    func_data{1, i}{ii, 1} = [mainStruct.(nam).proc.fmri{i} ',' num2str(ii)];
-                end
-            end
-        end
-        if mainStruct.(nam).data_check.t1 == 1
-            anat_data(1, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\anat\' nam '_anat.nii']};
-        end
-        
         spatial_steps = 1;
-        if length(varargin)>2
+        if length(varargin)>1
             %varargin{3}: if 0, not to do spatial steps, if 1 -yes
-            if varargin{3}<1
+            if varargin{2}<1
                 spatial_steps = 0;
             end
         end
-        
+
+        %set inputs
+        for i=1:sesNum
+            runNam = sprintf('run-%02i', i);
+            fmri_name = [mainStruct.meta.bids_folder BIDSnam '\func\' BIDSnam '_task-heatpain_' runNam '_bold.nii'];
+            fmri_img = spm_vol(fmri_name);
+            NSA(i) = length(fmri_img);
+            for ii=1:NSA
+                func_data{1, i}{ii, 1} = [fmri_name ',' num2str(ii)];
+            end
+        end
+        anat_data(1, 1) = {[mainStruct.meta.bids_folder BIDSnam  '\anat\' BIDSnam '_T1w.nii']};
+        %save initial filenames
+        fl_name = dir([mainStruct.meta.bids_folder BIDSnam '\*\' BIDSnam '*']);
+
         if spatial_steps
             nrun = 1;
 %             jobfile = {[mainStruct.meta.folder '\_meta\spatial_empty_job.m']};
@@ -199,59 +359,61 @@ switch action
 %             spm('defaults', 'FMRI');
 %             spm_jobman('run', jobs, inputs{:});
              callfMRIProcessing(inputs, 'interleaved', 1);
+%             callfMRIProcessing(inputs, 'ascending', 1); 
 
             %There are new files in the fmri-directory, so we will copy
             %them into another dir (called derived). Initial files are
             %saved
-            fils_func = dir([mainStruct.meta.folder mainStruct.(nam).folder '\func\*' nam '*']);
-            mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived']);
+            fils_func = dir([mainStruct.meta.bids_folder mainStruct.(nam).folder '\*\*' BIDSnam '*']);
+
             for i=1:length(fils_func)
                 dontdelete_flag = 0;
-                if ~contains(fils_func(i).name, 'xlsx')
-                    for ii =1:length(mainStruct.(nam).proc.fmri)
-                        [~, fl_name] = fileparts(mainStruct.(nam).proc.fmri{ii});
-                        if strcmp(fils_func(i).name, [fl_name '.nii']) || dontdelete_flag==1
-                            dontdelete_flag = 1;
-                        end
+                for ii = 1:length(fl_name)
+                    [~, tempName, ext] = fileparts(fl_name(ii).name);
+                    if strcmp(fils_func(i).name, [tempName, ext])
+                        dontdelete_flag = 1;
                     end
-                    if dontdelete_flag == 0
-                        copyfile([fils_func(i).folder '\' fils_func(i).name], ...
-                            [mainStruct.meta.folder mainStruct.(nam).folder '\derived\' fils_func(i).name]);
-                        delete([fils_func(i).folder '\' fils_func(i).name]);
-                    end
+                end
+                if dontdelete_flag == 0
+                    copyfile([fils_func(i).folder '\' fils_func(i).name], ...
+                        [derivativesDir '\' fils_func(i).name]);
+                    delete([fils_func(i).folder '\' fils_func(i).name]);
                 end
             end
             mainStruct.(nam).data_check.fmri_spat = 1;
         end
 
-        mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived\res']);
+        mkdir([derivativesDir '\res']);
         nrun = 1; % enter the number of runs here
         jobfile = {[mainStruct.meta.folder '\_meta\stats_empty_job.m']};
         jobs = repmat(jobfile, 1, nrun);
         inputs = cell(5, nrun);
         for crun = 1:nrun
-            inputs{1, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\res']}; % fMRI model specification: Directory - cfg_files
-            for ii =1:length(mainStruct.(nam).proc.fmri)
+            inputs{1, crun} = {[derivativesDir '\res']}; % fMRI model specification: Directory - cfg_files
+            for ii =1:sesNum
                 func_data = cell(1);
-                ses_nam = sprintf('_ses_%02i', ii);
-                [~, fl_name] = fileparts(mainStruct.(nam).proc.fmri{ii});
+                runNam = sprintf('run-%02i', ii);
+                fmri_name = [mainStruct.meta.bids_folder mainStruct.(nam).folder '\func\' BIDSnam '_task-heatpain_' runNam '_bold.nii'];
+
+                [~, temp_name] = fileparts(fmri_name);
                 for i=1:NSA(ii)
-                    func_data{1, i} = [mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' fl_name '.nii,' num2str(i)];
+                    func_data{1, i} = [derivativesDir '\swra' temp_name '.nii,' num2str(i)];
                 end
                 inputs{2, ii} = func_data; % fMRI model specification: Scans - cfg_files
-                if floor(mod(mainStruct.(nam).data_check.funcTable, 100)/10)>0
-                    regressorList = heatPain_makeRegressor([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold' ses_nam '.xlsx']);
-                    startTime = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold' ses_nam '.xlsx']);
-                     regressorList(:, 1) = regressorList(:, 1) - startTime(1) - (12 - mainStruct.(nam).proc.dummy_time);
-%                     regressorList(:, 1) = regressorList(:, 1) - startTime(1);
-                end
-                inputs{3, ii} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
-                inputs{4, ii} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
-                inputs{5, ii} = [mainStruct.meta.folder mainStruct.(nam).folder '\derived\rp_a' fl_name '.txt']; % fMRI model specification: Multiple regressors - cfg_files
+                regrr = readtable([mainStruct.meta.bids_folder mainStruct.(nam).folder '\func\' BIDSnam '_task-heatpain_' runNam '_events.tsv'], 'Delimiter','tab', 'FileType','text');
+                regrr = table2array(regrr);
+                inputs{3, ii} = regrr(:, 1); % fMRI model specification: Onsets - cfg_entry
+                inputs{4, ii} = regrr(:, 2); % fMRI model specification: Durations - cfg_entry
+                inputs{5, ii} = [derivativesDir '\rp_a' temp_name '.txt']; % fMRI model specification: Multiple regressors - cfg_files
             end
         end
         callGLM(inputs);
+
         
+
+
+
+
 
 end
 end
@@ -270,7 +432,14 @@ function callfMRIProcessing(inputs, slice_case, segment)
     matlabbatch{k}.spm.temporal.st.ta = matlabbatch{k}.spm.temporal.st.tr - matlabbatch{k}.spm.temporal.st.tr/matlabbatch{k}.spm.temporal.st.nslices;
     switch slice_case
         case 'interleaved'
-            matlabbatch{1}.spm.temporal.st.so = [1	7	13	19	25	31	2	8	14	20	26	32	3	9	15	21	27	33	4	10	16	22	28	34	5	11	17	23	29	35	6	12	18	24	30];
+%             matlabbatch{1}.spm.temporal.st.so = [1	7	13	19	25	31	2	8	14	20	26	32	3	9	15	21	27	33	4	10	16	22	28	34	5	11	17	23	29	35	6	12	18	24	30];
+        interleaveNum = ceil(sqrt(matlabbatch{k}.spm.temporal.st.nslices));
+        nslices = matlabbatch{k}.spm.temporal.st.nslices;
+        sliceOrder = [];
+        for i=1:interleaveNum
+            sliceOrder = [sliceOrder i:interleaveNum:nslices];
+        end
+         matlabbatch{1}.spm.temporal.st.so = sliceOrder;
         case 'ascending'
             matlabbatch{1}.spm.temporal.st.so = [1:matlabbatch{k}.spm.temporal.st.nslices];
     end
