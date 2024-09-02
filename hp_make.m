@@ -1342,6 +1342,49 @@ end
                 varargout{1} = resTable;
 
 %                 writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectraDynamic_sm.csv');
+            case 'dynamics-SM-BC'
+                %This case get data for spectral data comparison in
+                %dynamics/ For smoothed and bold corrected data
+                Values = {'NAA', 'Cr', 'Glx','NAAerr', 'Crerr','Glxerr' };
+                for i=4:32
+                    k = 1;
+                    for ii=1:length(Values)
+                        for ij = 1:6
+                            sp_nam = sprintf('tp_%02i_sm_bc', ij);
+                            valueChain = {'proc','act', sp_nam, Values{ii} };
+                            tableColumns{1, k} = ['act_' Values{ii} '_' sp_nam];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k = k+1;
+                        end
+                    end
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
+                writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectra-TP6-SM-BC.csv');
+            case 'All_the_dynamics'
+                %This case get data for spectral data comparison in
+                %dynamics; includes smoothed, bold-corrected data
+                Values = {'NAA', 'Cr', 'Glx','NAAerr', 'Crerr','Glxerr' };
+                for i=4:32
+                    k = 1;
+                    for ii=1:length(Values)
+                        for ij = 1:6
+                            sp_nam = sprintf('tp_%02i_sm_bc', ij);
+                            valueChain = {'proc','act', sp_nam, Values{ii} };
+                            tableColumns{1, k} = ['act_' Values{ii} '_' sp_nam];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k = k+1;
+                            sp_nam = sprintf('tp_%02i_sm', ij);
+                            valueChain = {'proc','act', sp_nam, Values{ii} };
+                            tableColumns{1, k} = ['act_' Values{ii} '_' sp_nam];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k = k+1;
+                        end
+                    end
+                end
+                resTable = array2table(resTable, 'VariableNames', tableColumns);
+                varargout{1} = resTable;
+                writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectra-TP6.csv');
 
             case 'spectra_6p'
                 Values = {'NAA', 'Cr', 'Glx' ,'NAAerr', 'Crerr','Glxerr' ,'LWCr' ,'LWNAA'};

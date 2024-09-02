@@ -1,12 +1,138 @@
 # This scripts are dedicated for statistic quantification of 
 # Glx dynamic during short heat pain stimulation.
+library(dplyr)
+library(tidyverse)
+library(tidyr)
 
 # 1. Search differences between different time points in dynamic
 #get data
-dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\GLX_normilised.csv')
+dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectraDynamic_sm.csv')
+#bold-corrected dAta
+dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectra-TP6-SM-BC.csv')
+# dynamics dAta in ACT state
+dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectra-TP6-SM-BC.csv')
 
-sham_df <- dats[1:13, ]
-bc_df <- dats[-26:-1, ]
+subjectNames <- paste0("sub_", 1:32)
+dats <- dats %>% mutate(subNames = subjectNames) 
+#exzclude subjects
+excludedSubjects <- c(1:3, 11, 4, 5, 6, 8, 19, 20, 32, 22 )
+#excludeaccording to QA
+excludedSubjects <- c(1:3, 9, 11, 13, 26, 28 )
+
+dats <- dats[-excludedSubjects,]
+#pivot column
+dats <- dats %>% pivot_longer(cols = "act_NAA_tp_01_sm_bc":"act_Glx_tp_06_sm_bc",
+                              names_to = "time",
+                              values_to = "MetValue") %>% select(subNames, time, MetValue)
+dats <- dats %>% separate_wider_delim(time, delim = "_tp_", names = c("condition", "time"))
+dats <- dats %>% separate_wider_delim(condition, delim = "_", names = c("condition", "met"))
+dats$time = gsub('_sm_bc','',dats$time)
+dats$time <- as.numeric(dats$time)
+#Plot the dynamics
+dats %>% filter(met == 'Glx') %>% group_by(subNames, condition) %>%
+   mutate(Z = (MetValue-mean(MetValue))/sqrt(var(MetValue))) %>% ungroup() %>%
+  group_by(condition, time) %>% summarise(meanZ = mean(Z)) %>%
+  ggplot(aes(x = time, y = meanZ, color = condition)) +
+  geom_point(size = 3) +
+  geom_line() +
+  facet_wrap(~ condition)
+
+#get normilised to Cr data
+dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = LWH) %>% 
+  mutate(NAA_Cr = NAA/Cr,Glx_Cr = Glx/Cr ) %>% 
+  select(subNames, condition, time, NAA_Cr, Glx_Cr)
+dats_Cr %>% select(-NAA_Cr) %>% group_by(subNames, condition) %>%
+  mutate(Z = (Glx_Cr-mean(Glx_Cr))/sqrt(var(Glx_Cr))) %>% ungroup() %>%
+  group_by(condition, time) %>% summarise(meanZ = mean(Z)) %>%
+  ggplot(aes(x = time, y = meanZ, color = condition)) +
+  geom_point(size = 3) +
+  geom_line() +
+  facet_wrap(~ condition)
+
+###########################
+#Dynamics un ACT state
+###########################
+
+# dynamics dAta in ACT state
+dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectra-TP6.csv')
+
+subjectNames <- paste0("sub_", 1:32)
+dats <- dats %>% mutate(subNames = subjectNames) 
+#excludeaccording to QA
+excludedSubjects <- c(1:3, 9, 11, 13, 26, 28 )
+dats <- dats[-excludedSubjects,]
+# excluson according to low fMRI activation
+excludedSubjects <- c(4, 5, 6, 8, 19, 20, 32, 17, 22)
+dats <- dats[-excludedSubjects,]
+#pivot column
+dats <- dats %>% pivot_longer(cols = "act_NAA_tp_01_sm_bc":"act_Glx_tp_06_sm",
+                              names_to = "time",
+                              values_to = "MetValue") %>% select(subNames, time, MetValue)
+dats <- dats %>% separate_wider_delim(time, delim = "_tp_", names = c("condition", "time"))
+dats <- dats %>% separate_wider_delim(condition, delim = "_", names = c("condition", "met"))
+dats <- dats %>% separate_wider_delim(time, delim = "_s", names = c("time", "boldCorrected"))
+dats$time <- as.numeric(dats$time)
+
+dats <- dats %>% 
+  mutate(bc = case_when(
+    str_detect(boldCorrected, "m_bc") ~ "1",
+    str_detect(boldCorrected, "m") ~ "0"))
+dats <- dats %>% select(-c(condition, boldCorrected))
+dats$bc <- as.numeric(dats$bc)
+
+#Plot the mean or median dynamics
+dats %>% filter(met == 'Glx') %>% group_by(subNames, bc) %>%
+  mutate(Z = (MetValue-mean(MetValue))/sqrt(var(MetValue))) %>% ungroup() %>%
+  group_by(bc, time) %>% summarise(meanZ = median(Z)) %>%
+  ggplot(aes(x = time, y = meanZ, color = bc)) +
+  geom_point(size = 3) +
+  geom_line() +
+  facet_wrap(~ bc)
+
+#Plot the every point in dynamics for each subject
+dats %>% filter(met == 'Glx') %>% group_by(subNames, bc) %>%
+  mutate(Z = (MetValue-mean(MetValue))/sqrt(var(MetValue))) %>% ungroup() %>%
+  ggplot(aes(x = time, y = Z, color = subNames)) +
+  geom_point(size = 3) +
+  facet_wrap(~ bc)
+
+#get normilised to Cr data
+dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = LWH) %>% 
+  mutate(NAA_Cr = NAA/Cr,Glx_Cr = Glx/Cr ) %>% 
+  select(subNames, condition, time, NAA_Cr, Glx_Cr)
+dats_Cr %>% select(-NAA_Cr) %>% group_by(subNames, condition) %>%
+  mutate(Z = (Glx_Cr-mean(Glx_Cr))/sqrt(var(Glx_Cr))) %>% ungroup() %>%
+  group_by(condition, time) %>% summarise(meanZ = mean(Z)) %>%
+  ggplot(aes(x = time, y = meanZ, color = condition)) +
+  geom_point(size = 3) +
+  geom_line() +
+  facet_wrap(~ condition)
+
+## Statisical analisys
+#check for normality
+normalityStatistics <- dats %>% select(met, time, bc, MetValue) %>%
+  filter(met == "Glx") %>%
+  group_by(met, time, bc) %>%
+  summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
+                             p.value = shapiro.test(.)$p.value))
+
+datsWider <- dats %>% filter(met == "Glx", bc == 1) %>% select(subNames, time, MetValue) %>%
+  filter(time == 1 | time== 2)
+getTest <- function(df, x){
+  df <- df %>% filter(time == 1 | time == x)
+  t.test(MetValue ~ time, data = df, paired = TRUE)
+}
+tests <- lapply(2:6, function(x) getTest(datsWider, x))
+results <- data.frame(
+  lag = 1:5, 
+  xsquared = sapply(tests, "[[", "statistic"), 
+  pvalue = sapply(tests, "[[", "p.value")
+)
+view(results)
+#find the difference
+###################
+# END of the part
+###################
 
 #check for normality
 apply(sham_df,2,shapiro.test)
