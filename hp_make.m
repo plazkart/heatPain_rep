@@ -1713,6 +1713,19 @@ end
         filterTable(:, 5) = sum(qaTab(:, :, 5) > 8, 2);
         QA_desicion = sum(filterTable >2, 2)>0;
         varargout{1} = QA_desicion;
+        varargout{2} = qaTab;
+
+        %additional export of the data. Execute it inthe terminal
+        if false
+            excludeData = [4, 5, 6, 10, 11, 22, 23];
+            includedData = setdiff([4:32], excludeData);
+            SNR = mean(qaTab(includedData, [1:5], 1), 2);
+            LW = mean(qaTab(includedData, [1:5], 5), 2);
+            GLXcrlb = mean(qaTab(includedData, [1:5], 4), 2);
+            CRcrlb = mean(qaTab(includedData, [1:5], 3), 2);
+            LW = mean(qaTab(includedData, [1:5], 3), 2);
+
+        end
 
     case 'MaskMeanSignal'
         % Insula (R ans L) and supplementary motor area (SMA)
