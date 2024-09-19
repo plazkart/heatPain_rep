@@ -336,7 +336,7 @@ switch action
             fmri_name = [mainStruct.meta.bids_folder BIDSnam '\func\' BIDSnam '_task-heatpain_' runNam '_bold.nii'];
             fmri_img = spm_vol(fmri_name);
             NSA(i) = length(fmri_img);
-            for ii=1:NSA
+            for ii=1:NSA(i)
                 func_data{1, i}{ii, 1} = [fmri_name ',' num2str(ii)];
             end
         end
@@ -359,7 +359,7 @@ switch action
 %             spm('defaults', 'FMRI');
 %             spm_jobman('run', jobs, inputs{:});
              callfMRIProcessing(inputs, 'interleaved', 1);
-%             callfMRIProcessing(inputs, 'ascending', 1); 
+%               callfMRIProcessing(inputs, 'ascending', 1); 
 
             %There are new files in the fmri-directory, so we will copy
             %them into another dir (called derived). Initial files are

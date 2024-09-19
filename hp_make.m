@@ -553,6 +553,7 @@ switch action
                    error("There is no time points matrix for data grouping. Make 'mrs_task_file' case");
                end
                sp = io_loadspec_sdat([mainStruct.meta.folder '\' nam '\sp\' nam '_' sp_name '.SDAT'], 1);
+               sp = op_takeaverages(sp, [1:315]);
                %make smoothin data
                sp.fids = 0.5*sp.fids + 0.25*circshift(sp.fids, 1, 1)+0.25*circshift(sp.fids, -1, 1);
                sp.specs = 0.5*sp.specs + 0.25*circshift(sp.specs, 1, 1)+0.25*circshift(sp.specs, -1, 1);

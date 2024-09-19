@@ -18,19 +18,20 @@ def inputs():
     import os
     from nilearn import image
     
-    filsList = os.listdir('E:\\Alex\\fMRI-spinal\\gul-2\\7t_pipeline')
-    os.chdir('E:\\Alex\\fMRI-spinal\\gul-2\\7t_pipeline')
+    mainDir = 'E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri'
+    filsList = os.listdir(mainDir)
+    os.chdir(mainDir)
     dats = imagesFMRI()
     for i in filsList:
         if i.find('epi_moco.nii.gz')>-1:
             dats.epi = image.load_img(i)
         if i.find('t2_seg_reg.nii.gz')>-1:
             dats.spinalCord = image.load_img(i)
-    filsList = os.listdir('E:\\Alex\\fMRI-spinal\\gul-2\\7t_pipeline\\label\\template')
+    filsList = os.listdir(mainDir + '\\label\\template')
     for i in filsList:
         if i.find('spinal_levels.nii.gz')>-1:
                 dats.labelsCord = image.load_img('label\\template\\' + i)
-    filsList = os.listdir('E:\\Alex\\fMRI-spinal\\gul-2\\7t_pipeline\\label\\atlas')
+    filsList = os.listdir(mainDir + '\\label\\atlas')
     atlasLabels = [1, 3, 5, 35, 4, 8, 12, 30]
     for i in filsList:
         for j in atlasLabels:
@@ -130,7 +131,42 @@ def plotTheShit(timecurve):
 
         plt.show()
 
-timecurve = quantifyBOLD()
-plotTheShit(timecurve)
-res = qunatificationSteps(timecurve)
-print(res.SNR)
+def processSCANPHYSLOGdata(scanphyslogName, outDirName, fmri_file):
+    from scanphyslog2bids.core import PhilipsPhysioLog
+    import nibabel as nib
+    import numpy as np
+
+    log_file = scanphyslogName
+    out_dir = outDirName  # where the BIDSified data should be saved
+    deriv_dir = outDirName + '/physio'  # where some QC plots should be saved
+
+    # fmri_file is used to extract metadata, such as TR and number of volumes
+    fmri_file = fmri_file 
+    fmri_img = nib.load(fmri_file)
+    n_dyns = fmri_img.shape[-1]
+    tr = np.round(fmri_img.header['pixdim'][4], 3)
+
+    # Create PhilipsPhysioLog object with info
+    phlog = PhilipsPhysioLog(f=log_file, tr=tr, n_dyns=n_dyns, sf=496, manually_stopped=False)
+
+    # Load in data, do some preprocessing
+    phlog.load()
+
+    # Try to align physio data with scan data, using a particular method
+    # (either "vol_markers", "gradient_log", or "interpolation")
+    phlog.align(trigger_method='interpolate', which_grad='y')  # load and find vol triggers
+
+    # Write out BIDS files
+    phlog.to_bids(out_dir)  # writes out .tsv.gz and .json files
+
+    # Optional: plot some QC graphs for alignment and actual traces
+    phlog.plot_alignment(out_dir=deriv_dir)  # plots alignment with gradient
+    phlog.plot_traces(out_dir=deriv_dir)  # plots cardiac/resp traces
+
+#timecurve = quantifyBOLD()
+#plotTheShit(timecurve)
+#res = qunatificationSteps(timecurve)
+#print(res.SNR)
+
+processSCANPHYSLOGdata('E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\physIO\\ScanPsaLog20240906180252.log',
+                       'E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\physIO' , 'E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\Ivantsov_WIP_FE_EPI_neck_20240906170706_901.nii.gz')
