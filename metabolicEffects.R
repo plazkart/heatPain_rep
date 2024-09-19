@@ -14,6 +14,8 @@ subjectNames <- paste0("sub_", 1:32)
 dats <- dats %>% mutate(subNames = subjectNames) 
 #exclude subjects QA
 excludedSubjects <- c(1:6, 8, 9, 10, 11, 13,17, 20, 22, 23,26, 28, 32 )
+#excluded subjects for sham condition
+excludedSubjects <- c(1:3, 24, 26, 28 )
 
 dats <- dats[-excludedSubjects,]
 #pivot column
@@ -25,6 +27,19 @@ dats <- dats %>% separate_wider_delim(condition, delim = "_", names = c("conditi
 dats$time = gsub('_sm','',dats$time)
 dats$time <- as.numeric(dats$time)
 
+#for BOLD-corrected DATA
+dats <- dats %>% pivot_longer(cols = "act_NAA_tp_01_sm_bc":"act_Glx_tp_06_sm_bc",
+                              names_to = "time",
+                              values_to = "MetValue") %>% select(subNames, time, MetValue)
+dats <- dats %>% separate_wider_delim(time, delim = "_tp_", names = c("condition", "time"))
+dats <- dats %>% separate_wider_delim(condition, delim = "_", names = c("condition", "met"))
+dats$time = gsub('_sm_bc','',dats$time)
+dats$time <- as.numeric(dats$time)
+
+
+#exclude 6th data point
+dats <- dats[-(which(dats$time %in% 6)),]
+
 #Get normilised to Cr data
 dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = MetValue) %>% 
   mutate(NAA_Cr = NAA/Cr,Glx_Cr = Glx/Cr ) %>% 
@@ -34,13 +49,13 @@ dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = MetValue) %>%
 ################################################################################
 ## Statistical analysis
 #check for normality
-normalityStatistics <- dats %>% filter(met == "Glx", condition == "act") %>%
+normalityStatistics <- dats %>% filter(met == "Cr", condition == "act") %>%
   select(time, MetValue) %>%
   group_by(time) %>%
   summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
                              p.value = shapiro.test(.)$p.value))
 normalityStatistics
-normalityStatistics <- dats %>% filter(met == "Glx", condition == "sham") %>%
+normalityStatistics <- dats %>% filter(met == "NAA", condition == "sham") %>%
   select(time, MetValue) %>%
   group_by(time) %>%
   summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
@@ -50,18 +65,18 @@ normalityStatistics
 # For Cr both statistics are normally distributed for each time point
 # For NAA statistics in act condition are not normally distributed for a few points
 
-normalityStatistics <- dats_Cr %>% filter(met == "Glx_Cr", condition == "act") %>%
+normalityStatistics <- dats_Cr %>% filter(met == "NAA_Cr", condition == "act") %>%
   select(time, MetValue) %>%
   group_by(time) %>%
   summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
                              p.value = shapiro.test(.)$p.value))
-normalityStatistics
-normalityStatistics <- dats_Cr %>% filter(met == "Glx_Cr", condition == "sham") %>%
+normalityStatistics$p.value
+normalityStatistics <- dats_Cr %>% filter(met == "NAA_Cr", condition == "sham") %>%
   select(time, MetValue) %>%
   group_by(time) %>%
   summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
                              p.value = shapiro.test(.)$p.value))
-normalityStatistics
+normalityStatistics$p.value
 
 # For Glx/Cr only Act group is normally distributed for each time point
 # For NAA/Cr only Sham group is normally distributed for each time point
@@ -72,35 +87,52 @@ getTest <- function(df, x){
   df <- df %>% filter(time == 1 | time == x)
   t.test(MetValue ~ time, data = df, paired = TRUE)
 }
-tests <- lapply(2:6, function(x) getTest(datsWider, x))
+#set 2:5 if there is 5 data points and lag = 1:4
+tests <- lapply(2:5, function(x) getTest(datsWider, x))
 results <- data.frame(
-  lag = 1:5, 
+  lag = 1:4, 
   xsquared = sapply(tests, "[[", "statistic"), 
   pvalue = sapply(tests, "[[", "p.value"),
   meanDiference = sapply(tests, "[[", "estimate"),
   stdDiff = sapply(tests, "[[", "stderr")
 )
-view(results)
+results <- results %>% select(pvalue, meanDiference, stdDiff)
+results$meanDiference <- results$meanDiference*-1
+
+p.adjust(results$pvalue)
 
 #For Cr normilised
-datsWider <- dats_Cr %>% filter(met == "Glx_Cr", condition == "act") %>% select(subNames, time, MetValue)
+datsWider <- dats_Cr %>% filter(met == "NAA_Cr", condition == "act") %>% select(subNames, time, MetValue)
 getTest <- function(df, x){
   df <- df %>% filter(time == 1 | time == x)
   t.test(MetValue ~ time, data = df, paired = TRUE)
 }
-tests <- lapply(2:6, function(x) getTest(datsWider, x))
+#set 2:5 if there is 5 data points and lag = 1:4
+tests <- lapply(2:5, function(x) getTest(datsWider, x))
 results <- data.frame(
-  lag = 1:5, 
+  lag = 1:4, 
   xsquared = sapply(tests, "[[", "statistic"), 
-  pvalue = sapply(tests, "[[", "p.value")
+  pvalue = sapply(tests, "[[", "p.value"),
+  meanDiference = sapply(tests, "[[", "estimate"),
+  stdDiff = sapply(tests, "[[", "stderr")
 )
+results <- results %>% select(pvalue, meanDiference, stdDiff)
+results$meanDiference <- results$meanDiference*-1
 view(results)
+p.adjust(results$pvalue)
 
 # Second point for Glx/Cr has trend to increase p = 0.06
 # Third point for NAA/Cr increasing p = 0.045
 
 ## Glx differs from 1st point in act: 2nd point 0.02
 ## Glx differs from 1st point in sham: no differences
+
+##################################
+#Get values for a TABLE data
+outTableData <- dats %>% filter(met == 'Glx') %>% group_by(condition, time) %>% 
+  summarise(meanValue = mean(ValueLWH), stdZ = sd(ValueLWH))
+outTableData <- dats_Cr %>% filter(met == 'Glx_Cr') %>% group_by(condition, time) %>% 
+  summarise(meanValue = mean(MetValue), stdZ = sd(MetValue))
 
 ################################################################################
 #Plot the dynamics

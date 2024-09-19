@@ -280,6 +280,7 @@ dats <- dats[-excludedSubjects,]
 dats <- dats %>% pivot_longer(cols = "act_tp_01_LWCr":"sham_tp_06_HNAA",
                               names_to = "time",
                               values_to = "LWH")
+dats <- dats %>% select(subNames, time, LWH)
 
 dats <- dats %>% separate_wider_delim(time, delim = "_tp_", names = c("condition", "time"))
 dats <- dats %>% separate_wider_delim(time, delim = "_", names = c("time", "Value"))
