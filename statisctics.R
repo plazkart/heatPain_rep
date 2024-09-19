@@ -116,8 +116,7 @@ normalityStatistics <- dats %>% select(met, time, bc, MetValue) %>%
   summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
                              p.value = shapiro.test(.)$p.value))
 
-datsWider <- dats %>% filter(met == "Glx", bc == 1) %>% select(subNames, time, MetValue) %>%
-  filter(time == 1 | time== 2)
+datsWider <- dats %>% filter(met == "Glx", bc == 1) %>% select(subNames, time, MetValue)
 getTest <- function(df, x){
   df <- df %>% filter(time == 1 | time == x)
   t.test(MetValue ~ time, data = df, paired = TRUE)
@@ -129,6 +128,9 @@ results <- data.frame(
   pvalue = sapply(tests, "[[", "p.value")
 )
 view(results)
+
+
+# 
 #find the difference
 ###################
 # END of the part
