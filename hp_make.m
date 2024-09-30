@@ -1473,10 +1473,10 @@ end
                             tableColumns{k, 1} = ['act_' sp_nam '_' Values{ii}];
                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
                             k=k+1;
-%                             valueChain = {'proc','sham', sp_nam, Values{ii}};
-%                             tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
-%                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
-%                             k=k+1;
+                            valueChain = {'proc','sham', sp_nam, Values{ii}};
+                            tableColumns{k, 1} = ['sham_' sp_nam '_' Values{ii}];
+                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+                            k=k+1;
                         end
                     end
                 end
@@ -1484,7 +1484,7 @@ end
                 resTable = array2table(resTable, 'VariableNames', tableColumns);
                 varargout{1} = resTable;
 
-%                 writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\BOLD_MRS.csv');
+                writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\BOLD_MRS.csv');
                 
             case 'BOLD_HRF_mrs'
                 valueChain = {'proc','hfr_mrs'};

@@ -3,7 +3,7 @@ library(dplyr)
 library(tidyverse)
 library(tidyr)
 #get LW and H
-dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS_sm.csv')
+dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS.csv')
 
 subjectNames <- paste0("sub_", 1:32)
 dats <- dats %>% mutate(subNames = subjectNames) 
@@ -53,7 +53,7 @@ normalityStatistics <- dats %>% filter(met == "NAA", ValueLWH == "H") %>%
 normalityStatistics$p.value
 
 #### T-test
-datsWider <- dats %>% filter(met == "NAA", condition == "sham",  ValueLWH == "LW") %>% 
+datsWider <- dats %>% filter(met == "Cr", condition == "sham",  ValueLWH == "LW") %>% 
   select(subNames, time, LWH)
 getTest <- function(df, x){
   df <- df %>% filter(time == 1 | time == x)

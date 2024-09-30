@@ -6,14 +6,14 @@ library(tidyr)
 
 # 1. Search differences between different time points in dynamic
 #get data
-dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectraDynamic_sm.csv')
+datsInit <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectraDynamic_sm.csv')
 #bold-corrected dAta
-dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectra-TP6-SM-BC.csv')
+datsInit <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectra-TP6-SM-BC.csv')
 
 subjectNames <- paste0("sub_", 1:32)
-dats <- dats %>% mutate(subNames = subjectNames) 
+dats <- datsInit %>% mutate(subNames = subjectNames) 
 #exclude subjects QA
-excludedSubjects <- c(1:6, 8, 9, 10, 11, 13,17, 20, 22, 23,26, 28, 32 )
+excludedSubjects <- c(1:6, 8, 9, 10, 11, 13, 17, 20, 22, 23,26, 28, 32 )
 #excluded subjects for sham condition
 excludedSubjects <- c(1:3, 24, 26, 28 )
 
@@ -99,7 +99,7 @@ results <- data.frame(
 results <- results %>% select(pvalue, meanDiference, stdDiff)
 results$meanDiference <- results$meanDiference*-1
 
-p.adjust(results$pvalue)
+p.adjust(results$pvalue, method = 'BH')
 
 #For Cr normilised
 datsWider <- dats_Cr %>% filter(met == "NAA_Cr", condition == "act") %>% select(subNames, time, MetValue)
@@ -119,13 +119,35 @@ results <- data.frame(
 results <- results %>% select(pvalue, meanDiference, stdDiff)
 results$meanDiference <- results$meanDiference*-1
 view(results)
-p.adjust(results$pvalue)
+p.adjust(results$pvalue, method = 'BY')
 
 # Second point for Glx/Cr has trend to increase p = 0.06
 # Third point for NAA/Cr increasing p = 0.045
 
 ## Glx differs from 1st point in act: 2nd point 0.02
 ## Glx differs from 1st point in sham: no differences
+
+#################### repeated measures two-way ANOVA 
+# Statistics
+
+df <- data.frame(dats %>% filter(met == 'Glx') %>% select(subNames, condition, time, MetValue))
+library(afex)
+# Преобразуем переменные в факторы
+df$subNames <- as.factor(df$subNames)
+df$condition <- as.factor(df$condition)
+df$time <- as.factor(df$time)
+
+# Выполняем Repeated Measures ANOVA с ковариатой
+res <- aov_ez(
+  id = "subNames",
+  dv = "MetValue",
+  within = c("time", "condition"),
+  data = df,
+  type = 3
+)
+
+# Выводим результаты
+print(res)
 
 ##################################
 #Get values for a TABLE data
@@ -136,16 +158,22 @@ outTableData <- dats_Cr %>% filter(met == 'Glx_Cr') %>% group_by(condition, time
 
 ################################################################################
 #Plot the dynamics
+###Define colors 
+rhg_cols <- c("#F28E2B", "#76B7B2", "#EDC948", "#F27314", "#F8A31B", 
+              "#E2C59F", "#B6C5CC", "#8E9CA3", "#556670", "#000000")
 ####
-dats %>% filter(met == 'Glx') %>% group_by(subNames, condition) %>% 
+dats %>% filter(met == 'Glx', condition == 'act') %>% group_by(subNames) %>% 
   mutate(MetValue_1 = MetValue[time == 1]) %>%
-  mutate(Z = (MetValue-MetValue_1)) %>% ungroup() %>%
-  group_by(condition, time) %>% summarise(meanZ = mean(Z), stdZ = sd(Z)) %>%
-  ggplot(aes(x = time, y = meanZ, color = condition)) +
-  geom_point(size = 3) +
-  geom_line() +
-  geom_errorbar(aes(ymax = meanZ+stdZ, ymin = meanZ-stdZ)) +
-  facet_wrap(~ condition)
+  mutate(Z = (MetValue-MetValue_1)/MetValue_1) %>% ungroup() %>%
+  ggplot(aes(x = time, y = Z)) +
+  geom_jitter(size = 2,  color = "#F28E2B", alpha  = 0.7, width = 0.1) +
+  stat_summary(fun.y =mean, geom="line", size= 1, color = "#8E9CA3") +
+  stat_summary(fun.y =mean, geom="point", shape=20, size=5, color = "#8E9CA3") +
+  stat_summary(fun.data =mean_se, geom="errorbar", width = 0.3, size = 1.5, alpha = 0.9, color = "#8E9CA3",
+               linetype = "solid",position=position_dodge(width=0.3)) +
+  scale_colour_manual(values =  rhg_cols)+
+  theme_minimal()
+
 
 #get normilised to Cr data
 dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = LWH) %>% 
@@ -158,3 +186,16 @@ dats_Cr %>% select(-NAA_Cr) %>% group_by(subNames, condition) %>%
   geom_point(size = 3) +
   geom_line() +
   facet_wrap(~ condition)
+
+
+####experimental
+dats %>% filter(met == 'Glx', condition == 'act') %>% group_by(time) %>% 
+  mutate(Z = (MetValue-mean(MetValue))/sd(MetValue)) %>% ungroup() %>%
+  ggplot(aes(x = time, y = Z)) +
+  geom_jitter(size = 2,  color = "#F28E2B", alpha  = 0.7, width = 0.1) +
+  stat_summary(fun.y =mean, geom="line", size= 1, color = "#8E9CA3") +
+  stat_summary(fun.y =mean, geom="point", shape=20, size=5, color = "#8E9CA3") +
+  stat_summary(fun.data =mean_se, geom="errorbar", width = 0.3, size = 1.5, alpha = 0.9, color = "#8E9CA3",
+               linetype = "solid",position=position_dodge(width=0.3)) +
+  scale_colour_manual(values =  rhg_cols)+
+  theme_minimal()
