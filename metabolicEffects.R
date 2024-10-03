@@ -4,11 +4,12 @@ library(dplyr)
 library(tidyverse)
 library(tidyr)
 
+pathMain <- 'C:\\Users\\Admin\\YandexDisk\\Work\\data\\fMRS-hp\\results\\'
 # 1. Search differences between different time points in dynamic
 #get data
-datsInit <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectraDynamic_sm.csv')
+datsInit <- read.csv(paste(pathMain, 'spectraDynamic_sm.csv', sep = ''))
 #bold-corrected dAta
-datsInit <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectra-TP6-SM-BC.csv')
+datsInit <- read.csv(paste(pathMain, 'spectra-TP6-SM-BC.csv', sep = ''))
 
 subjectNames <- paste0("sub_", 1:32)
 dats <- datsInit %>% mutate(subNames = subjectNames) 
@@ -82,10 +83,14 @@ normalityStatistics$p.value
 # For NAA/Cr only Sham group is normally distributed for each time point
 
 ### T-test
-datsWider <- dats %>% filter(met == "Glx", condition == "act") %>% select(subNames, time, MetValue)
+datsWider <- dats %>% filter(met == "NAA", condition == "act") %>% select(subNames, time, MetValue)
+results <- pairwise.t.test(datsWider$MetValue, datsWider$time,
+                           p.adjust.method = 'none', paired = TRUE, FUN = mean)
+p.adjust(results$p.value[,1], method = 'BH')
+
 getTest <- function(df, x){
-  df <- df %>% filter(time == 1 | time == x)
-  t.test(MetValue ~ time, data = df, paired = TRUE)
+  df <- df %>% filter(time == 1, time == x)
+  pairwise.t.test(MetValue, time, data = df, p. adjust.methods = 'none',  paired = TRUE)
 }
 #set 2:5 if there is 5 data points and lag = 1:4
 tests <- lapply(2:5, function(x) getTest(datsWider, x))
@@ -162,16 +167,20 @@ outTableData <- dats_Cr %>% filter(met == 'Glx_Cr') %>% group_by(condition, time
 rhg_cols <- c("#F28E2B", "#76B7B2", "#EDC948", "#F27314", "#F8A31B", 
               "#E2C59F", "#B6C5CC", "#8E9CA3", "#556670", "#000000")
 ####
-dats %>% filter(met == 'Glx', condition == 'act') %>% group_by(subNames) %>% 
+metName <- 'NAA'
+dats %>% filter(met == metName) %>% group_by(subNames, condition) %>%
   mutate(MetValue_1 = MetValue[time == 1]) %>%
-  mutate(Z = (MetValue-MetValue_1)/MetValue_1) %>% ungroup() %>%
-  ggplot(aes(x = time, y = Z)) +
+  mutate(Z = (MetValue-MetValue_1)) %>% ungroup() %>%
+  ggplot(aes(x = time*2-2, y = Z)) +
   geom_jitter(size = 2,  color = "#F28E2B", alpha  = 0.7, width = 0.1) +
   stat_summary(fun.y =mean, geom="line", size= 1, color = "#8E9CA3") +
   stat_summary(fun.y =mean, geom="point", shape=20, size=5, color = "#8E9CA3") +
-  stat_summary(fun.data =mean_se, geom="errorbar", width = 0.3, size = 1.5, alpha = 0.9, color = "#8E9CA3",
+  stat_summary(fun.data =mean_se, geom="errorbar", width = 0.15, size = 1.0, alpha = 0.9, color = "#8E9CA3",
                linetype = "solid",position=position_dodge(width=0.3)) +
   scale_colour_manual(values =  rhg_cols)+
+  facet_grid(vars(condition))+
+  xlab('time, s') + # for the x axis label
+  ylab(paste('change', metName,', mM')) + # for the y axis label
   theme_minimal()
 
 
