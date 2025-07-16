@@ -270,3 +270,8 @@ results$meanDiference <- results$meanDiference*-1
 p.adjust(results$pvalue, method = 'BH')
 
 ## 0.195317291 0.006202118 0.060027264 0.149780352 In act GROUP 2!!!
+
+dats_groups %>% filter(met == 'Glx', condition == 'act') %>% group_by(subNames) %>% 
+  +     mutate(MetValue_1 = MetValue[time == 1]) %>%
+  +     mutate(Z = (MetValue-MetValue_1)) %>% ungroup() %>% select(subNames, time, Z) %>% 
+  +     group_by(time) %>% summarise(mean = mean(Z), sd =std(Z))
