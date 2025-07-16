@@ -8,7 +8,8 @@ dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\
 subjectNames <- paste0("sub_", 1:32)
 dats <- dats %>% mutate(subNames = subjectNames) 
 
-excludedSubjects <- c(1:6, 8, 9, 10, 11, 13,17, 20, 22, 23,26, 28, 32 )
+#excludedSubjects <- c(1:6, 8, 9, 10, 11, 13,17, 20, 22, 23,26, 28, 32 )
+excludedSubjects <- c(1:6, 8, 9, 11, 13,17, 20, 22,26, 28, 32 )
 #excluded subjects for sham condition
 excludedSubjects <- c(1:3, 24, 26, 28 )
 
@@ -94,7 +95,7 @@ dats %>% filter(condition=="sham", ValueLWH == "LW", met == "Cr") %>%
 ###############################
 # Analysis of dependence of concentration and Linewidth changes
 
-excludedSubjects <- c(1:6, 8, 9, 10, 11, 13,17, 20, 22, 23,26, 28, 32 )
+excludedSubjects <- c(1:6, 8, 9, 11, 13,17, 20, 22 ,26, 28, 32 )
 subjectNames <- paste0("sub_", 1:32)
 #get LW and H
 datsLWH <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS_sm.csv')
@@ -155,6 +156,9 @@ dats <- dats %>%
     str_detect(time, "sham") ~ "sham"
   ))
 dats <- dats %>%  select(-time)
+
+################
+# Correlate BOLD changes and
 
 ### get LW change
 tempDats0 <- dats %>% filter(valueType == "LW", cond == "act", met == "NAA") %>% group_by(subNames) %>%

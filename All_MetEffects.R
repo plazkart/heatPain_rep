@@ -28,20 +28,41 @@ dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = MetValue) %>%
 normalityStatistics <- dats %>% filter(met == "Glx") %>%
   select(subj, condition, MetValue) %>%
   group_by(condition) %>%
-  summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
+  summarise_all(.funs = funs(statistic = t.test(.)$p.value, 
                              p.value = shapiro.test(.)$p.value))
 
+normalityStatistics <- dats  %>%
+  group_by(met, condition) %>% select(MetValue) %>%
+  summarise_all(.funs = funs(statistic = t.test(.)$statistics, 
+                             p.value = shapiro.test(.)$p.value))
+# Glx is non-normal, Cr and NAA - OK
 
-### T-test
-datsWider <- dats %>% filter(met == "Glx") %>% select(subj, condition, MetValue)
+### Descriptive statistics
+
+df_stat <- dats %>% group_by(condition, met) %>% summarize(
+  count = n(),
+  mean = mean(MetValue, na.rm = TRUE), 
+  sd = sd(MetValue, na.rm = TRUE)) 
+head(df_stat)
+
 
 
 # compute the difference
-d <- with(my_data, 
-          weight[group == "before"] - weight[group == "after"])
+d <- with(datsWider, 
+          datsWider %>% filter(condition == "act") %>% select(MetValue) -
+            datsWider %>% filter(condition == "sham") %>% select(MetValue))
 # Shapiro-Wilk normality test for the differences
-shapiro.test(d) # => p-value = 0.6141
+shapiro.test(d$MetValue) # => p-value = 0.6141
 
-
+datsWider <- dats %>% filter(met == "Cr") %>% select(subj, condition, MetValue)
 res <- t.test(MetValue ~ condition, data = datsWider, paired = TRUE)
 res
+
+datsWider <- dats %>% filter(met == "NAA") %>% select(subj, condition, MetValue)
+res <- t.test(MetValue ~ condition, data = datsWider, paired = TRUE)
+res
+
+
+# S3 method for default
+datsWider <- dats %>% filter(met == "Glx") %>% select(subj, condition, MetValue)
+res <- wilcox.test(MetValue ~ condition,  data = datsWider)
