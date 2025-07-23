@@ -76,7 +76,7 @@ batch_preprocessing <- function(bold, Cr, group_number, metName, conditonName) {
   
 }  
 
-dats_groups <- batch_preprocessing(1, 0, 2, 'Glx', 'act')
+dats_groups <- batch_preprocessing(0, 0, 2, 'Glx', 'act')
 dats_group <- dats_groups %>% filter(group == 2)
 res <- batch_stattest(dats_group, 0, 0, 2, 'Glx', 'act')
 
