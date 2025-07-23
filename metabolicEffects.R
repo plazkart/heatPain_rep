@@ -245,10 +245,11 @@ dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = MetValue) %>%
   select(subNames, condition, time, NAA_Cr, Glx_Cr) %>% 
   pivot_longer(cols = c("NAA_Cr", "Glx_Cr"), names_to = "met", values_to = "MetValue")
 
-sub_groups <- paste0("sub_", groups_1)
+sub_groups <- paste0("sub_", groups_2)
 # get needed group
 dats_groups <- dats[(which(dats$subNames %in% sub_groups)),]
-
+# Creatine relative case
+dats_groups <- dats_Cr[(which(dats_Cr$subNames %in% sub_groups)),]
 ### T-test
 datsWider <- dats_groups %>% filter(met == "Glx", condition == "act") %>% select(subNames, time, MetValue)
 getTest <- function(df, x){
@@ -270,6 +271,31 @@ results$meanDiference <- results$meanDiference*-1
 p.adjust(results$pvalue, method = 'BH')
 
 ## 0.195317291 0.006202118 0.060027264 0.149780352 In act GROUP 2!!!
+
+datsWider <- dats_groups %>% filter(met == "Glx_Cr", condition == "act") %>% select(subNames, time, MetValue)
+getTest <- function(df, x){
+  df <- df %>% filter(time == 1 | time == x)
+  t.test(MetValue ~ time, data = df, paired = TRUE)
+}
+#set 2:5 if there is 5 data points and lag = 1:4
+tests <- lapply(2:5, function(x) getTest(datsWider, x))
+results <- data.frame(
+  lag = 1:4, 
+  xsquared = sapply(tests, "[[", "statistic"), 
+  pvalue = sapply(tests, "[[", "p.value"),
+  meanDiference = sapply(tests, "[[", "estimate"),
+  stdDiff = sapply(tests, "[[", "stderr")
+)
+results <- results %>% select(pvalue, meanDiference, stdDiff)
+results$meanDiference <- results$meanDiference*-1
+mean_values <- dats_groups %>% filter(met == "Glx_Cr", condition == "act") %>% select(subNames, time, MetValue)  %>% 
+  group_by(time) %>% summarise(mu = mean(MetValue))
+results$mean_values <- mean_values$mu[1]
+results$pvalue <- p.adjust(results$pvalue, method = 'BH')
+view(results)
+
+
+
 
 dats_groups %>% filter(met == 'Glx', condition == 'act') %>% group_by(subNames) %>% 
   +     mutate(MetValue_1 = MetValue[time == 1]) %>%
