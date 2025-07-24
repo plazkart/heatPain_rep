@@ -4,7 +4,7 @@ library(dplyr)
 library(tidyverse)
 library(tidyr)
 
-batch_preprocessing <- function(bold, Cr, group_number, metName, conditonName) {
+batch_preprocessing <- function(bold, Cr, metName, conditonName) {
   if (bold==0) {
   #get data
   datsInit <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectraDynamic_sm.csv')
@@ -17,7 +17,8 @@ batch_preprocessing <- function(bold, Cr, group_number, metName, conditonName) {
   dats <- datsInit %>% mutate(subNames = subjectNames) 
   #exclude subjects QA
   #excludedSubjects <- c(1:6, 8, 9, 10, 11, 13, 17, 20, 22, 23,26, 28, 32 )
-  excludedSubjects <- c(1:6, 9, 11, 13, 26, 28, 22 ) # Due to the bad quality MRS
+   excludedSubjects <- c(1:6, 9, 11, 26, 28, 22, 15 , 17 ) # Due to the bad quality MRS
+  # excludedSubjects <- c(1:6,11, 22, 15 , 17 ) # Due to the bad dynamics
   dats <- dats[-excludedSubjects,]
   
   if (bold==0) {
@@ -42,7 +43,10 @@ batch_preprocessing <- function(bold, Cr, group_number, metName, conditonName) {
   # groups_1 <- c(17, 22, 20, 8, 32, 19, 23, 29, 31, 15)
   # groups_2 <- c(14, 7, 24, 30, 10, 21, 25, 12, 27, 16, 18)
   
-  groups_1 <- c(17, 20, 8, 32, 19, 23, 29, 31, 15, 14)
+  # groups_1 <- c(17, 20, 8, 32, 19, 23, 29, 31, 15, 14)
+  # groups_2 <- c(7, 24, 30, 10, 21, 25, 12, 27, 16, 18)
+  
+  groups_1 <- c( 20, 8, 32, 19, 23, 29, 31, 14, 13)
   groups_2 <- c(7, 24, 30, 10, 21, 25, 12, 27, 16, 18)
 
   #exclude 6th data point
@@ -51,36 +55,50 @@ batch_preprocessing <- function(bold, Cr, group_number, metName, conditonName) {
   #add column for grouping
   dats$group = 1
   sub_groups_2 <- paste0("sub_", groups_2)  
-  if (group_number==1) {
-    sub_groups <- paste0("sub_", groups_1)
-  } else {
-    sub_groups <- paste0("sub_", groups_2)
-  }
   
   if (Cr==1) {
     #Get normilised to Cr data
     dats_Cr <- dats %>% pivot_wider(names_from = met, values_from = MetValue) %>% 
       mutate(NAA_Cr = NAA/Cr,Glx_Cr = Glx/Cr ) %>% 
-      select(subNames, condition, time, NAA_Cr, Glx_Cr) %>% 
+      select(subNames, condition, time, group, NAA_Cr, Glx_Cr) %>% 
       pivot_longer(cols = c("NAA_Cr", "Glx_Cr"), names_to = "met", values_to = "MetValue")
     # Creatine relative case
-    dats_groups <- dats_Cr[(which(dats_Cr$subNames %in% sub_groups)),]
+    dats_groups <- dats_Cr
     metName <- paste0(metName, '_Cr')
     
   } else {
-    # get needed group
-    dats_groups <- dats[(which(dats$subNames %in% sub_groups)),]
+    dats_groups <- dats
   }
-  dats[(which(dats$subNames %in% sub_groups_2)), 'group'] = 2
-  return(dats)
+  dats_groups[(which(dats_groups$subNames %in% sub_groups_2)), 'group'] = 2
+  return(dats_groups)
   
 }  
 
-dats_groups <- batch_preprocessing(0, 0, 2, 'Glx', 'act')
-dats_group <- dats_groups %>% filter(group == 2)
-res <- batch_stattest(dats_group, 0, 0, 2, 'Glx', 'act')
+# batch_preprocessing <- function(bold, Cr, group_number, metName, conditonName)
+
+for (x in 1:2) {
+  dats_groups <- batch_preprocessing(1, 0, 'Glx', 'act')
+  dats_group <- dats_groups %>% filter(group == x)
+  # res <- batch_stattest(dats_groups, 0, 1, 2, 'Glx', 'act')
+  res <- batch_normality(dats_group, 0, 'Glx', 'act')
+  print(res)
+}
+batch_normality  <- function(dats, Cr, metName, conditionName){
+  if (Cr == 1){
+    metName <- paste0(metName, '_Cr')
+  }
+  normalityStatistics <- dats %>% filter(met == metName, condition == conditionName) %>%
+    select(time, MetValue) %>%
+    group_by(time) %>%
+    summarise_all(.funs = funs(statistic = t.test(.)$statistic, 
+                               p.value = shapiro.test(.)$p.value))
+  return(normalityStatistics$p.value)
+}
 
 batch_stattest <- function(dats_groups, bold, Cr, group_number, metName, conditonName) {
+  if (Cr == 1){
+    metName <- paste0(metName, '_Cr')
+  }
   datsWider <- dats_groups %>% filter(met == metName, condition == conditonName) %>% select(subNames, time, MetValue)
   getTest <- function(df, x){
     df <- df %>% filter(time == 1 | time == x)
@@ -101,10 +119,14 @@ batch_stattest <- function(dats_groups, bold, Cr, group_number, metName, condito
     group_by(time) %>% summarise(mu = mean(MetValue))
   results$mean_values <- mean_values$mu[1]
   results$pvalue <- p.adjust(results$pvalue, method = 'BH')
-  view(results)
+  # view(results)
   
   return(results)
 }
+
+dats_groups <- batch_preprocessing(0, 0, 1, 'Glx', 'act')
+dats_group <- dats_groups %>% filter(group == 1)
+res <- batch_stattest(dats_group, 0, 0, 1, 'Glx', 'act')
 ################################################################################
 # Test most activated vs weak activated persons
 
