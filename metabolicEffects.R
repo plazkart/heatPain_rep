@@ -14,9 +14,10 @@ subjectNames <- paste0("sub_", 1:32)
 dats <- datsInit %>% mutate(subNames = subjectNames) 
 #exclude subjects QA
 #excludedSubjects <- c(1:6, 8, 9, 10, 11, 13, 17, 20, 22, 23,26, 28, 32 )
-excludedSubjects <- c(1:6, 8, 9, 11,10, 13,17, 20, 22,26, 28, 32 ) # No 10 and 23
+#excludedSubjects <- c(1:6, 8, 9, 11,10, 13,17, 20, 22,26, 28, 32 ) # No 10 and 23
+ excludedSubjects <- c(1:6, 9, 11, 26, 28, 22, 15 , 17 ) # Due to the bad quality MRS (a)ug 2025)
 #excluded subjects for sham condition
-excludedSubjects <- c(1:3, 24, 26, 28 )
+#excludedSubjects <- c(1:3, 24, 26, 28 )
 
 dats <- dats[-excludedSubjects,]
 #pivot column
@@ -101,6 +102,32 @@ results <- results %>% select(pvalue, meanDiference, stdDiff)
 results$meanDiference <- results$meanDiference*-1
 
 p.adjust(results$pvalue, method = 'BH')
+
+
+ getTest <- function(df, x){
+    df <- df %>% filter(time == 1 | time == x)
+    t.test(MetValue ~ time, data = df, paired = TRUE)
+  }
+  #set 2:5 if there is 5 data points and lag = 1:4
+  tests <- lapply(2:5, function(x) getTest(datsWider, x))
+  results <- data.frame(
+    lag = 1:4,
+    xsquared = sapply(tests, "[[", "statistic"),
+    pvalue = sapply(tests, "[[", "p.value"),
+    meanDiference = sapply(tests, "[[", "estimate"),
+    stdDiff = sapply(tests, "[[", "stderr")
+  )
+  results <- results %>% select(pvalue, meanDiference, stdDiff)
+  results$meanDiference <- results$meanDiference*-1
+  mean_values <- dats_groups %>% filter(met == metName, condition == conditonName) %>% select(subNames, time, MetValue)  %>%
+    group_by(time) %>% summarise(mu = mean(MetValue))
+  results$mean_values <- mean_values$mu[1]
+  results$pvalue <- p.adjust(results$pvalue, method = 'BH')
+  # view(results)
+
+  return(results)
+
+
 
 #For Cr normilised
 datsWider <- dats_Cr %>% filter(met == "Glx_Cr", condition == "act") %>% select(subNames, time, MetValue)

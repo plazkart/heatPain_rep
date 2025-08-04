@@ -2,41 +2,90 @@
 library(dplyr)
 library(tidyverse)
 library(tidyr)
-#get LW and H
-dats <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\BOLD_MRS.csv')
 
-subjectNames <- paste0("sub_", 1:32)
-dats <- dats %>% mutate(subNames = subjectNames) 
+batch_preprocessing <- function() {
+  main_path = 'B:\\YandexDisk'
+  #get data
+  datsInit <-  read.csv(paste(main_path,'\\Work\\data\\fMRS-hp\\results\\BOLD_MRS.csv', sep = ""))
 
-#excludedSubjects <- c(1:6, 8, 9, 10, 11, 13,17, 20, 22, 23,26, 28, 32 )
-excludedSubjects <- c(1:6, 8, 9, 11, 13,17, 20, 22,26, 28, 32 )
-#excluded subjects for sham condition
-excludedSubjects <- c(1:3, 24, 26, 28 )
+  subjectNames <- paste0("sub_", 1:32)
+  dats <- datsInit %>% mutate(subNames = subjectNames)
 
-dats <- dats[-excludedSubjects,]
-dats <- dats %>% pivot_longer(cols = "act_tp_01_sm_LWCr":"sham_tp_06_sm_HNAA",
-                              names_to = "time",
-                              values_to = "LWH")
+  #excludedSubjects <- c(1:6, 8, 9, 10, 11, 13,17, 20, 22, 23,26, 28, 32 )
+  #excludedSubjects <- c(1:6, 8, 9, 11, 13,17, 20, 22,26, 28, 32 )
+   excludedSubjects <- c(1:6, 9, 11, 26, 28, 22, 15 , 17 ) # Due to the bad quality MRS (a)ug 2025)
+  #excluded subjects for sham condition
+  #excludedSubjects <- c(1:3, 24, 26, 28 )
 
-dats <- dats %>% select(subNames, time, LWH )
-dats <- dats %>% separate_wider_delim(time, delim = "_tp_", names = c("condition", "time"))
-dats <- dats %>% separate_wider_delim(time, delim = "_sm_", names = c("time", "Value"))
+  dats <- dats[-excludedSubjects,]
+  dats <- dats %>% pivot_longer(cols = "act_tp_01_sm_LWCr":"sham_tp_06_sm_HNAA",
+                                names_to = "time",
+                                values_to = "LWH")
 
-dats$time <- as.numeric(dats$time)
+  dats <- dats %>% select(subNames, time, LWH )
+  dats <- dats %>% separate_wider_delim(time, delim = "_tp_", names = c("condition", "time"))
+  dats <- dats %>% separate_wider_delim(time, delim = "_sm_", names = c("time", "Value"))
 
-dats <- dats %>% 
-  mutate(ValueLWH = case_when(
-    str_detect(Value, "LW") ~ "LW",
-    str_detect(Value, "H") ~ "H"))
+  dats$time <- as.numeric(dats$time)
 
-dats <- dats %>% 
-  mutate(met = case_when(
-    str_detect(Value, "Cr") ~ "Cr",
-    str_detect(Value, "NAA") ~ "NAA"))
+  dats <- dats %>%
+    mutate(ValueLWH = case_when(
+      str_detect(Value, "LW") ~ "LW",
+      str_detect(Value, "H") ~ "H"))
 
-dats <- dats %>% select(-'Value')
-dats <- dats[-(which(dats$time %in% 6)),]
+  dats <- dats %>%
+    mutate(met = case_when(
+      str_detect(Value, "Cr") ~ "Cr",
+      str_detect(Value, "NAA") ~ "NAA"))
 
+  dats <- dats %>% select(-'Value')
+  dats <- dats[-(which(dats$time %in% 6)),]
+
+   groups_2 <- c(7, 24, 30, 10, 21, 25, 12, 27, 16, 18)
+   #add column for grouping
+    dats$group = 1
+    sub_groups_2 <- paste0("sub_", groups_2)
+  dats_groups <- dats
+  dats_groups[(which(dats$subNames %in% sub_groups_2)), 'group'] = 2
+  return(dats_groups)
+}
+
+batch_stattest <- function(dats_groups,metName, conditonName, valueName, group_number) {
+  datsWider <- dats_groups %>% filter(met == metName, ValueLWH == valueName, condition == conditonName, group == group_number) %>%
+    select(subNames, time, LWH)
+  #### T-test
+  getTest <- function(df, x){
+    df <- df %>% filter(time == 1 | time == x)
+    # t.test(LWH ~ time, data = df)
+    t.test(df$LWH[df$time == 1], df$LWH[df$time == x], data = df, paired = TRUE)
+  }
+
+    #set 2:5 if there is 5 data points and lag = 1:4
+  tests <- lapply(2:5, function(x) getTest(datsWider, x))
+  results <- data.frame(
+    lag = 1:4,
+    xsquared = sapply(tests, "[[", "statistic"),
+    pvalue = sapply(tests, "[[", "p.value"),
+    meanDiference = sapply(tests, "[[", "estimate"),
+    stdDiff = sapply(tests, "[[", "stderr")
+  )
+  results <- results %>% select(pvalue, meanDiference, stdDiff)
+  #results$meanDiference <- results$meanDiference*-1
+  print(p.adjust(results$pvalue))
+  results$pvalue <- p.adjust(results$pvalue)
+  return(results)
+}
+dats_groups <- batch_preprocessing()
+
+condName <- "act"
+res <- batch_stattest(dats_groups, "NAA", condName, "LW", 2)
+res <- batch_stattest(dats_groups, "Cr", condName, "LW", 2)
+res <- batch_stattest(dats_groups, "NAA", condName, "H", 2)
+res <- batch_stattest(dats_groups, "Cr", condName, "H", 2)
+res <- batch_stattest(dats_groups, "NAA", condName, "LW", 1)
+res <- batch_stattest(dats_groups, "Cr", condName, "LW", 1)
+res <- batch_stattest(dats_groups, "NAA", condName, "H", 1)
+res <- batch_stattest(dats_groups, "Cr", condName, "H", 1)
 
 ################################################################################
 ### Statistical tests
@@ -53,26 +102,8 @@ normalityStatistics <- dats %>% filter(met == "NAA", ValueLWH == "H") %>%
                              p.value = shapiro.test(.)$p.value))
 normalityStatistics$p.value
 
-#### T-test
-datsWider <- dats %>% filter(met == "Cr", condition == "sham",  ValueLWH == "LW") %>% 
-  select(subNames, time, LWH)
-getTest <- function(df, x){
-  df <- df %>% filter(time == 1 | time == x)
-  t.test(LWH ~ time, data = df, paired = TRUE)
-}
-#set 2:5 if there is 5 data points and lag = 1:4
-tests <- lapply(2:5, function(x) getTest(datsWider, x))
-results <- data.frame(
-  lag = 1:4, 
-  xsquared = sapply(tests, "[[", "statistic"), 
-  pvalue = sapply(tests, "[[", "p.value"),
-  meanDiference = sapply(tests, "[[", "estimate"),
-  stdDiff = sapply(tests, "[[", "stderr")
-)
-results <- results %>% select(pvalue, meanDiference, stdDiff)
-results$meanDiference <- results$meanDiference*-1
 
-p.adjust(results$pvalue)
+
 
 ##################################
 #Get values for a TABLE data
@@ -175,3 +206,4 @@ tempDats$LWChange <- tempDats0$LWchange
 ### Plot the dependence
 tempDats %>% ggplot(aes(x = metChange, y = LWChange)) +
   geom_point()
+

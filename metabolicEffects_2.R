@@ -5,12 +5,13 @@ library(tidyverse)
 library(tidyr)
 
 batch_preprocessing <- function(bold, Cr, metName, conditonName) {
+  main_path = 'B:\\YandexDisk'
   if (bold==0) {
   #get data
-  datsInit <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectraDynamic_sm.csv')
+  datsInit <- read.csv(paste(main_path, '\\Work\\data\\fMRS-hp\\results\\spectraDynamic_sm.csv', sep = ""))
   } else {
   #bold-corrected dAta
-  datsInit <- read.csv('C:\\Users\\Science\\YandexDisk\\Work\\data\\fMRS-hp\\results\\spectra-TP6-SM-BC.csv')
+  datsInit <- read.csv(paste(main_path, '\\Work\\data\\fMRS-hp\\results\\spectra-TP6-SM-BC.csv', sep = ""))
   }
   
   subjectNames <- paste0("sub_", 1:32)
