@@ -4,7 +4,7 @@ library(dplyr)
 library(tidyverse)
 library(tidyr)
 
-batch_preprocessing <- function(bold, Cr, metName, conditonName) {
+batch_preprocessing <- function(bold, Cr, metName) {
   main_path = 'B:\\YandexDisk'
   if (bold==0) {
   #get data
@@ -78,7 +78,7 @@ batch_preprocessing <- function(bold, Cr, metName, conditonName) {
 # batch_preprocessing <- function(bold, Cr, group_number, metName, conditonName)
 
 for (x in 1:2) {
-  dats_groups <- batch_preprocessing(1, 0, 'Glx', 'act')
+  dats_groups <- batch_preprocessing(0, 0, 'Glx')
   dats_group <- dats_groups %>% filter(group == x)
   # res <- batch_stattest(dats_groups, 0, 1, 2, 'Glx', 'act')
   res <- batch_normality(dats_group, 0, 'Glx', 'act')
@@ -100,10 +100,10 @@ batch_stattest <- function(dats_groups, bold, Cr, group_number, metName, condito
   if (Cr == 1){
     metName <- paste0(metName, '_Cr')
   }
-  datsWider <- dats_groups %>% filter(met == metName, condition == conditonName) %>% select(subNames, time, MetValue)
+  datsWider <- dats_groups %>% filter(met == metName, condition == conditonName, group == group_number) %>% select(subNames, time, MetValue)
   getTest <- function(df, x){
     df <- df %>% filter(time == 1 | time == x)
-    t.test(MetValue ~ time, data = df, paired = TRUE)
+    t.test(df$MetValue[df$time == 1], df$MetValue[df$time == x], paired = TRUE)
   }
   #set 2:5 if there is 5 data points and lag = 1:4
   tests <- lapply(2:5, function(x) getTest(datsWider, x))
@@ -125,9 +125,16 @@ batch_stattest <- function(dats_groups, bold, Cr, group_number, metName, condito
   return(results)
 }
 
-dats_groups <- batch_preprocessing(0, 0, 1, 'Glx', 'act')
-dats_group <- dats_groups %>% filter(group == 1)
-res <- batch_stattest(dats_group, 0, 0, 1, 'Glx', 'act')
+for (x in 1:2) {
+  bold <- 0
+  Cr <- 0
+  metGlx <- 'Glx'
+  condName <- 'act'
+  dats_groups <- batch_preprocessing(bold, Cr,  metGlx)
+  #dats_group <- dats_groups %>% filter(group == 1)
+  res <- batch_stattest(dats_groups, bold, Cr, x, metGlx, condName)
+  print(res)
+}
 ################################################################################
 # Test most activated vs weak activated persons
 

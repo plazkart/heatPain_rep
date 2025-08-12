@@ -70,14 +70,15 @@ batch_stattest <- function(dats_groups,metName, conditonName, valueName, group_n
     stdDiff = sapply(tests, "[[", "stderr")
   )
   results <- results %>% select(pvalue, meanDiference, stdDiff)
-  #results$meanDiference <- results$meanDiference*-1
+  results$meanDiference <- results$meanDiference*-1
   print(p.adjust(results$pvalue))
   results$pvalue <- p.adjust(results$pvalue)
+  results$initvalue <- mean(datsWider[datsWider$time == 1, 'LWH']$LWH)
   return(results)
 }
 dats_groups <- batch_preprocessing()
 
-condName <- "act"
+condName <- "sham"
 res <- batch_stattest(dats_groups, "NAA", condName, "LW", 2)
 res <- batch_stattest(dats_groups, "Cr", condName, "LW", 2)
 res <- batch_stattest(dats_groups, "NAA", condName, "H", 2)
