@@ -550,7 +550,7 @@ end
 function callGLM(inputs)
     matlabbatch{1}.spm.stats.fmri_spec.dir = inputs{1, 1};
 matlabbatch{1}.spm.stats.fmri_spec.timing.units = 'secs';
-matlabbatch{1}.spm.stats.fmri_spec.timing.RT = 2;
+matlabbatch{1}.spm.stats.fmri_spec.timing.RT = 3;
 matlabbatch{1}.spm.stats.fmri_spec.timing.fmri_t = 16;
 matlabbatch{1}.spm.stats.fmri_spec.timing.fmri_t0 = 8;
 for ii=1:size(inputs, 2)
@@ -563,7 +563,7 @@ for ii=1:size(inputs, 2)
     matlabbatch{1}.spm.stats.fmri_spec.sess(ii).cond.orth = 1;
     matlabbatch{1}.spm.stats.fmri_spec.sess(ii).multi = {''};
     matlabbatch{1}.spm.stats.fmri_spec.sess(ii).regress = struct('name', {}, 'val', {});
-    matlabbatch{1}.spm.stats.fmri_spec.sess(ii).multi_reg = {inputs{5, ii}};
+    matlabbatch{1}.spm.stats.fmri_spec.sess(ii).multi_reg = {'E:\Alex\fmri_thermal\_bids\derivatives\spm\sub-14\physIo_bids\multiple_regressors.txt'};
     matlabbatch{1}.spm.stats.fmri_spec.sess(ii).hpf = 128;
 end
 matlabbatch{1}.spm.stats.fmri_spec.fact = struct('name', {}, 'levels', {});

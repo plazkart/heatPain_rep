@@ -1194,19 +1194,8 @@ switch action
                     maxValue = max(abs(fit_figure.specs)); BASELINE = quantile(fit_figure.specs, 0.5);
                     plot(sp_figure.ppm, [sp_figure.specs+maxValue*1.1*ii-BASELINE, fit_figure.specs+maxValue*1.1*ii-BASELINE]); hold on
                     set(gca,'Xdir','reverse');
-                end
-            case 4 
-                %average spectra in state
-                for ii = 1:6
-                    sp_nam = sprintf('tp_%02i_%s_sm', ii, condition);
-                    coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\' sp_nam '\coord'];
-                    sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
-                    fit_figure = io_readlcmcoord_getBackground(coordPath,'fit');
-                    maxValue = max(abs(fit_figure.specs)); BASELINE = quantile(fit_figure.specs, 0.5);
-                    plot(sp_figure.ppm, [sp_figure.specs+maxValue*1.1*ii-BASELINE, fit_figure.specs+maxValue*1.1*ii-BASELINE]); hold on
-                    set(gca,'Xdir','reverse');
-                end
 
+                end
          exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' nam '_tp_sm.png'], 'BackgroundColor', 'white');
 end
 

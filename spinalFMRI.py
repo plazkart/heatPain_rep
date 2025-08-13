@@ -1,5 +1,6 @@
 def preInitialize():
     import nilearn
+
 class imagesFMRI:
     epi = ''
     spinalCord = ''
@@ -163,10 +164,10 @@ def processSCANPHYSLOGdata(scanphyslogName, outDirName, fmri_file):
     phlog.plot_alignment(out_dir=deriv_dir)  # plots alignment with gradient
     phlog.plot_traces(out_dir=deriv_dir)  # plots cardiac/resp traces
 
-#timecurve = quantifyBOLD()
-#plotTheShit(timecurve)
+timecurve = quantifyBOLD()
+plotTheShit(timecurve)
 #res = qunatificationSteps(timecurve)
 #print(res.SNR)
 
-processSCANPHYSLOGdata('E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\physIO\\ScanPsaLog20240906180252.log',
-                       'E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\physIO' , 'E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\Ivantsov_WIP_FE_EPI_neck_20240906170706_901.nii.gz')
+#processSCANPHYSLOGdata('E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\physIO\\ScanPsaLog20240906180252.log',
+#                       'E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\physIO' , 'E:\\Alex\\fMRI-spinal\\Ivantsov\\spinal-fmri\\Ivantsov_WIP_FE_EPI_neck_20240906170706_901.nii.gz')
