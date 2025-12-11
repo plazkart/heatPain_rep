@@ -331,7 +331,7 @@ switch action
             anat_data(1, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\anat\' nam '_anat.nii']};
         end
         
-        spatial_steps = 1;
+        spatial_steps = 0;
         if length(varargin)>2
             %varargin{3}: if 0, not to do spatial steps, if 1 -yes
             if varargin{3}<1
@@ -370,13 +370,16 @@ switch action
             mainStruct.(nam).data_check.fmri_spat = 1;
         end
 
-        mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived\res']);
+        processedDir = [mainStruct.meta.folder mainStruct.(nam).folder '\derived\res_1pbefore'];
+        mkdir(processedDir);
+%         mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\derived\res']);
         nrun = 1; % enter the number of runs here
         jobfile = {[mainStruct.meta.folder '\_meta\stats_empty_job.m']};
         jobs = repmat(jobfile, 1, nrun);
         inputs = cell(5, nrun);
         for crun = 1:nrun
-            inputs{1, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\res']}; % fMRI model specification: Directory - cfg_files
+
+            inputs{1, crun} = {processedDir}; % fMRI model specification: Directory - cfg_files
             for i=1:NSA
                 func_data(i, 1) = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\swra' nam '_func.nii,' num2str(i)]};
             end
@@ -387,7 +390,8 @@ switch action
                 TTL_time = getTTLtime([mainStruct.meta.folder mainStruct.(nam).folder '\func\' nam '_bold.xlsx']);
                 regressorList(:, 1) = regressorList(:, 1) - TTL_time(1) - (12 - mainStruct.(nam).proc.dummy_time);
             end
-            inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
+            inputs{3, crun} = regressorList(:, 1)-2;%Test for previous point
+%             inputs{3, crun} = regressorList(:, 1); % fMRI model specification: Onsets - cfg_entry
             inputs{4, crun} = regressorList(:, 2); % fMRI model specification: Durations - cfg_entry
             inputs{5, crun} = {[mainStruct.meta.folder mainStruct.(nam).folder '\derived\rp_a' nam '_func.txt']}; % fMRI model specification: Multiple regressors - cfg_files
         end
@@ -932,7 +936,7 @@ switch action
             case 'sixPoints_mrs'
                 cases = {'sham', 'act'};
                 for ii =1:2
-                    copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*_p*' cases{ii} '.*']);
+                    copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*all_tp*' cases{ii} '.*']);
                     for i = 1:length(copyFiles)
                         if ~contains(copyFiles(i).name, 'bc')
                             copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
@@ -961,10 +965,12 @@ switch action
                 if mainStruct.(nam).proc_check.timepoints_spectra.sham<1
                     error('There is no time points divided data YET');
                 end
-                if mainStruct.(nam).proc_check.bold_correction<1
-                    error('There is no BOLD correction done yet');
-                end
-                copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*bc*']);
+%                 if mainStruct.(nam).proc_check.bold_correction<1
+%                     error('There is no BOLD correction done yet');
+%                 end
+                %02122025
+                %copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*tp*bc*']);
+                copyFiles = dir([mainStruct.meta.folder '\' nam '\sp\derived\*all*tp*bc*']);
                 for i = 1:length(copyFiles)
                     copyfile([copyFiles(i).folder '\' copyFiles(i).name], [out_path '\' copyFiles(i).name]);
                 end
@@ -1037,17 +1043,22 @@ switch action
         switch tp_case
             case 2
                 for i=1:length(fils)
+%                     temp = split(fils(i).folder, '_');
+                    temp = regexp(fils(i).folder, '\d+', 'match');
+                    tp_num = str2num(temp{end});
                     temp = split(fils(i).folder, '_');
-                    temp{end-1} = regexp(temp{end-1}, '\d', 'match');
-                    tp_num = str2num(temp{end-1}{1});
-                    mod_case = temp{end};
+                    if contains(temp{end}, 'bc')
+                        mod_case = temp{end-1};
+                    else
+                        mod_case = temp{end};
+                    end
 
-                    out_dir = sprintf('p%i_%s',tp_num, mod_case);
+                    out_dir = sprintf('tp_%02i_%s_bc',tp_num, mod_case);
                     mkdir([mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir]);
                     copyfile([fils(i).folder '\' fils(i).name], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\' fils(i).name]);
                     copyfile([fils(i).folder '\coord'], [[mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir] '\coord']);
                     
-                    tp_nam = sprintf('p%i', tp_num);
+                    tp_nam = sprintf('tp_%02i_bc', tp_num);
                     mainStruct.(nam).proc.(mod_case).(tp_nam).exist = 1;
                     mainStruct.(nam).proc.(mod_case).(tp_nam).path = [mainStruct.meta.folder mainStruct.(nam).folder '\results\sp\' out_dir '\' fils(i).name];
 
@@ -1084,10 +1095,13 @@ switch action
 
                     mainStruct = hp_make('processLCTable',mainStruct, id, mod_case, tp_nam);
                 end
-        mainStruct = hp_make('save', mainStruct);
-
-
+            
         end
+        mainStruct = hp_make('save', mainStruct);
+        
+
+
+        
 
     case 'getTableData'
         %use as hp_make('getTableData', path, id, tp_case)
@@ -1195,19 +1209,32 @@ switch action
                     plot(sp_figure.ppm, [sp_figure.specs+maxValue*1.1*ii-BASELINE, fit_figure.specs+maxValue*1.1*ii-BASELINE]); hold on
                     set(gca,'Xdir','reverse');
                 end
+                exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' nam '_tp_sm.png'], 'BackgroundColor', 'white');
             case 4 
                 %average spectra in state
-                for ii = 1:6
-                    sp_nam = sprintf('tp_%02i_%s_sm', ii, condition);
-                    coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\' sp_nam '\coord'];
-                    sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
-                    fit_figure = io_readlcmcoord_getBackground(coordPath,'fit');
-                    maxValue = max(abs(fit_figure.specs)); BASELINE = quantile(fit_figure.specs, 0.5);
-                    plot(sp_figure.ppm, [sp_figure.specs+maxValue*1.1*ii-BASELINE, fit_figure.specs+maxValue*1.1*ii-BASELINE]); hold on
-                    set(gca,'Xdir','reverse');
+                groups_1 = [20, 8, 32, 19, 23, 29, 31, 14, 13];
+                groups_2 = [7, 24, 30, 10, 21, 25, 12, 27, 16, 18];
+                group = groups_2;
+                mean_i = zeros(490, length(group));
+                for group_i=1:length(group)
+                    nam = sprintf('sub_%02i', group(group_i));
+                    for ii = 1:6
+                        sp_nam = sprintf('tp_%02i_%s_sm', ii, condition);
+                        coordPath = [mainStruct.meta.folder mainStruct.(nam).folder  '\results\sp\' sp_nam '\coord'];
+                        sp_figure = io_readlcmcoord_getBackground(coordPath,'sp');
+                        mean_i(:, group_i) = mean_i(:, group_i) + sp_figure.specs;
+                    end
+                    mean_i(:, group_i) = mean_i(:, group_i) - mean(mean_i(:, group_i));
                 end
-
-         exportgraphics(gcf,[mainStruct.meta.YDfolder '\spectraFigures\' nam '_tp_sm.png'], 'BackgroundColor', 'white');
+                yu = mean(mean_i, 2)+std(mean_i, [], 2);
+                yl = mean(mean_i, 2)-std(mean_i, [], 2);
+                figure();
+                fill([sp_figure.ppm' fliplr(sp_figure.ppm')], [yu' fliplr(yl')], [.9 .9 .9], 'LineStyle', 'none'); hold all
+                plot(sp_figure.ppm, [mean(mean_i, 2)]);
+                set(gca,'Xdir','reverse', 'PlotBoxAspectRatio', [4 2 1]);
+                xlabel( 'chemical shift, ppm')
+                exportgraphics(gcf,[mainStruct.meta.folder '\_meta\Figures\' condition 'average_group_2.png'], 'BackgroundColor', 'white', 'Resolution', 600);
+         
 end
 
     case 'spVoxelPlacement'
@@ -1378,15 +1405,16 @@ end
                     k = 1;
                     for ii=1:length(Values)
                         for ij = 1:6
-                            sp_nam = sprintf('tp_%02i', ij);
+                            %sp_nam = sprintf('tp_%02i', ij);
+                            sp_nam = sprintf('tp_%02i_bc', ij);
                             valueChain = {'proc','act', sp_nam, Values{ii} };
                             tableColumns{1, k} = ['act_' Values{ii} '_' sp_nam];
                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
                             k = k+1;
-                            valueChain = {'proc','sham', sp_nam, Values{ii}};
-                            tableColumns{1, k} = ['sham_' Values{ii} '_' sp_nam];
-                            [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
-                            k = k+1;
+%                             valueChain = {'proc','sham', sp_nam, Values{ii}};
+%                             tableColumns{1, k} = ['sham_' Values{ii} '_' sp_nam];
+%                             [~, resTable(i, k)] = hp_make('getValue', i, valueChain);
+%                             k = k+1;
                         end
                     end
                 end
@@ -1461,7 +1489,7 @@ end
                 resTable = array2table(resTable, 'VariableNames', tableColumns);
                 varargout{1} = resTable;
 
-                 writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectra6P.csv');
+%                  writetable(resTable, 'C:\Users\Science\YandexDisk\Work\data\fMRS-hp\results\spectra6P.csv');
 
             case 'reactionMRS'
                 Values = {'rating', 'reaction_time'};
@@ -1593,19 +1621,20 @@ end
         fprintf(txt_protocol, '------ \n bold correction NAA signal: case - %s \n', nam);
         for ii=1:6
             tp_nam = sprintf('tp_%02i', ii);
-            sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' tp_nam '_act_sm.SDAT'];
+            %sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' tp_nam '_act_sm.SDAT'];
+            %For bold correction of non-smoothed data (AY, 0212-2025)
+            sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' tp_nam '_act.SDAT'];
             sp = io_loadspec_sdat(sp_name, 1);
             sp = op_filter(sp, -LW_NAA_n(ii, 1));
-            new_sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' tp_nam '_act_sm_bc.SDAT'];
+            %For bold correction of non-smoothed data (AY, 0212-2025)
+            %new_sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_' tp_nam '_act_sm_bc.SDAT'];
+            new_sp_name = [mainStruct.meta.folder '\' nam '\sp\derived\' nam '_all_' tp_nam '_act_bc.SDAT'];
             mrs_writeSDAT(new_sp_name, sp.fids);
             copyfile([sp_name(1:end-4) 'SPAR'], [new_sp_name(1:end-4) 'SPAR']);
 
             %write LW-changes into the protocol of mrs processing
             fprintf(txt_protocol, '%s \n', datetime("today"));
-            fprintf(txt_protocol, 'linewidth change for tp_%02i_sm: %f \n', ii, -LW_NAA_n(ii, 1));
-
-
-
+            fprintf(txt_protocol, 'linewidth change for tp_%02i: %f \n', ii, -LW_NAA_n(ii, 1));
         end
 
 
@@ -1684,6 +1713,43 @@ end
         Q6_time_series_task(fmri_file, rp_file, SPM_file);
         saveas(gcf,[mainStruct.meta.folder '\' nam '\meta\Q6.jpg'],'jpg');
 
+    case 'rs_file_quantification_QA'
+        %quantify std of motion during fMRI acquisition
+        % hp_make('rs_file_quantification_QA', id)
+        id = varargin{1};
+        mainStruct = hp_make('load');
+        nam = sprintf('sub_%02i', id);
+        rp_file = dir([mainStruct.meta.folder '\' nam '\derived\rp_a' nam '_func.txt']);
+        if length(rp_file)<1
+            rp_file = dir([mainStruct.meta.folder '\' nam '\derived\rp_' nam '_func.txt']);
+        end
+
+        f = fopen([rp_file(1).folder '\' rp_file(1).name]);
+        lineCounter = 0;
+        while ~feof(f) % Loop until the end of the file
+            textLine = fgetl(f); % Read one line
+            if ischar(textLine) % Check if a line was successfully read (not end of file)
+                lineCounter = lineCounter + 1;
+                textLine = regexp(textLine, '[^ ]*', 'match');
+                if length(textLine) > 1
+                for ii = 1:3
+                    tranlates(lineCounter, ii) = str2double(textLine{ii});
+                end
+                tranlates(lineCounter, 4) = sqrt(tranlates(lineCounter, :)*tranlates(lineCounter, :)');
+                end
+                % fprintf('Line %d: %s\n', lineCounter, textLine); % Process the line
+            end
+        end
+        shifts = diff(tranlates); shifts = shifts(:, [1:3]);
+        motionSTD = sqrt(shifts*shifts'); 
+%         motionSTD = trace(motionSTD)/length(motionSTD);
+        motionSTD = max(abs(diag(motionSTD)));
+        %motionSTD = std(tranlates(:, 4));
+
+
+        
+        varargout{1} = motionSTD; 
+
 
     case 'b1/b8'
 
@@ -1693,8 +1759,12 @@ end
         mainStruct = hp_make('load');
         nam = sprintf('sub_%02i', id);
 
-        b1_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0001.nii']);
-        b8_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0008.nii']);
+%         b1_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0001.nii']);
+%         b8_file = ([mainStruct.meta.folder '\' nam '\derived\res\beta_0008.nii']);
+        %test of last point
+        b1_file = ([mainStruct.meta.folder '\' nam '\derived\res_1pbefore\beta_0001.nii']);
+        b8_file = ([mainStruct.meta.folder '\' nam '\derived\res_1pbefore\beta_0008.nii']);
+
         InsulaL_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_left_thr20.nii']);
         InsulaR_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rInsula_right_thr20.nii']);
         SMA_mask_file = ([mainStruct.meta.folder '\_meta\atlas_map\atlases_Lena\rSMA_thr20.nii']);
@@ -1747,17 +1817,22 @@ end
                 end
             end
         end
-        MeanIL = S_IL/N_IL; mainStruct.(nam).proc.bold.MeanIL = MeanIL;
-        MeanIR = S_IR/N_IR; mainStruct.(nam).proc.bold.MeanIR = MeanIR;
-        MeanSMA = S_SMA/N_SMA; mainStruct.(nam).proc.bold.MeanSMA = MeanSMA;
+        MeanIL = S_IL/N_IL; 
+%         mainStruct.(nam).proc.bold.MeanIL = MeanIL;
+        MeanIR = S_IR/N_IR; 
+%         mainStruct.(nam).proc.bold.MeanIR = MeanIR;
+        MeanSMA = S_SMA/N_SMA; 
+%         mainStruct.(nam).proc.bold.MeanSMA = MeanSMA;
         %fprintf('IL: %6.4f, IR: %6.4f, SMA:%6.4f,\n', MeanIL, MeanIR, MeanSMA);
         fprintf('%6.4f\t %6.4f\t %6.4f\n', MeanIL, MeanIR, MeanSMA);
+
+        varargout{1} = [MeanIL, MeanIR, MeanSMA];
 
 %     case 'all_b1/b8'
 %         for i = 3:25
 %             hp_make('b1/b8',i)
 %         end
-        hp_make('save', mainStruct);
+%         hp_make('save', mainStruct);
 % Analysis of QA numerical data
     case 'MRS_QA'
         % [~, QA_desicion] = hp_make('MRS_QA')
